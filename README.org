@@ -1,0 +1,363 @@
+#+TITLE: Techela - Technology Enhanced Learning and Assessment
+#+AUTHOR: John Kitchin
+
+* Introduction
+
+Techela is a framework for teaching courses. It provides a way to distribute, collect, grade, and return digital assignments.
+
+* Initial server setup
+The initial setup of a techela server is described here.
+** Create a new user
+The server is run on an ordinary Linux server under a dedicated user. The username should be the name of the course. I used system-config-users and added the user org-course.
+
+** install gitolite
+gitolite is the git server we use to create and manage git repositories for the course. First, login as the user for the course, and then run these commands.
+
+#+BEGIN_SRC sh
+git clone git://github.com/sitaramc/gitolite
+cd $HOME
+mkdir bin
+gitolite/install --to $HOME/bin
+#+END_SRC
+
+You need to get your ssh pub key in the directory. From your local machine, in the .ssh directory run this.
+
+#+BEGIN_SRC sh
+scp id_rsa.pub s15-06640@techela.cheme.cmu.edu:jkitchin-admin.pub
+#+END_SRC
+
+Then, on the remote git server machine:
+#+BEGIN_SRC sh
+gitolite setup -pk jkitchin-admin.pub
+#+END_SRC
+
+Initialized empty Git repository in /home/s15-06640/repositories/gitolite-admin.git/
+Initialized empty Git repository in /home/s15-06640/repositories/testing.git/
+WARNING: /home/s15-06640/.ssh missing; creating a new one
+    (this is normal on a brand new install)
+WARNING: /home/s15-06640/.ssh/authorized_keys missing; creating a new one
+    (this is normal on a brand new install)
+
+** clone the admin repo
+Create a directory somewhere on your remote machine where you want the course to live. Then, clone the admin repo into it.
+
+#+BEGIN_SRC sh
+mkdir /path/to/course
+cd /path/to/course
+git clone course-name@techela.cheme.cmu.edu:gitolite-admin
+#+END_SRC
+
+** edit gitolite/gitolite.conf
+Go ahead and configure git if you have not already done so.
+
+  git config --global user.email "jkitchin@andrew.cmu.edu"
+  git config --global user.name "John Kitchin"
+
+Now, we create the course repo. This is the repo that all students will have access to. We define the @instructors team
+
+
+Add this to gitolite-admin/conf/gitolite.conf.
+
+#+BEGIN_EXAMPLE
+repo gitolite-admin
+    RW+     =   jkitchin-admin
+
+@instructors = jkitchin irems hthirumai
+# file containing all student usernames
+include "students.conf"
+
+repo @all
+    RW+ = jkitchin
+    RW = @instructors
+
+# public course for students
+repo course
+    RW+ = jkitchin
+    RW = @instructors
+    R = @students daemon
+
+# we create a single file for each student repo.
+# the repos are grouped in the student-work directory.
+include "student-work/*/*.conf"
+
+# enable convenient creation of assignment repos. I can just clone
+# these to make it work. When you push to these, they are readable to
+# the students. This might be problematic if they clone them to
+# early. They will have to pull again. But it makes it trivial to
+# create the assignments without getting into the conf file.
+#
+# git clone f15-06625@techela.cheme.cmu.edu:assignments/label
+#
+# automatically creates the repo. To give students read access, run
+# this command.
+#
+# ssh f15-06625@techela.cheme.cmu.edu perms assignments/label + READERS @students
+repo assignments/[a-z].*
+    C = jkitchin
+    RW+ = jkitchin
+    R = READERS
+
+# wild-repo for the solutions
+#
+# git clone f15-06625@techela.cheme.cmu.edu:solutions/label
+#
+# to add read permission
+# ssh f15-06625@techela.cheme.cmu.edu perms solutions/label + READERS @students
+# to remove read permission
+# ssh f15-06625@techela.cheme.cmu.edu perms solutions/label - READERS @students
+repo solutions/[a-z].*
+    C = jkitchin
+    RW+ = jkitchin
+    R = READERS
+#+END_EXAMPLE
+
+Now, we create a non-empty directory so we can commit it, and touch the students.conf file.
+#+BEGIN_SRC sh
+mkdir student-work
+touch student-work/README
+echo "student repo conf files go here" >> student-work/README
+
+touch students.conf
+#+END_SRC
+
+That creates the course repo, and sets up the directories and files we need to create student repos. You have to commit and push these changes too.
+
+#+BEGIN_SRC sh
+git add repos students.conf
+git commit -m "add students.conf and repos"
+git push
+#+END_SRC
+
+Now, you can clone the course repo.
+
+#+BEGIN_SRC sh
+git clone org-course@techela.cheme.cmu.edu:course
+#+END_SRC
+
+* Course setup in gitolite-admin
+This section describes the "private" course setup, i.e. the part students do not need to see.
+
+** keydir
+gitolite requirement. Contains userid.pub files.
+
+** conf
+gitolite requirement. Contains gitolite.conf, which sets up repos.
+
+*** conf/student-work
+We can actually create repo.conf files in this directory, and they are included in the gitolite.conf automatically. We only make one repo.conf per repository.
+*** conf/students.conf
+This file defines the @students group. It is usually generated automatically from the roster.
+Initially this file should have these contents:
+
+#+BEGIN_EXAMPLE
+@students =
+#+END_EXAMPLE
+
+** roster.dat
+File containing registered students. This should be the datafile downloaded from fio, although any csv file with the userid in the second column, last name in the third column, and first name in the fourth column will do right now.
+
+This form takes me straight there for 06-625 in the fall. You have to enter your andrewid and password.
+
+[2015-07-29 Wed] this does not work in s3
+#+BEGIN_SRC text :tangle roster.html
+<HTML><HEAD><TITLE>06-625 Roster</TITLE></HEAD>
+<BODY onload="document.forms['foo'].submit();">
+
+<p><form name="foo"
+action="https://www.as.cmu.edu/fio/proc.formproc"
+method="post" <br />
+<input type="hidden" name="VAR1" value="Fall 2015, 06625 A, CHMCL & REACTV SYSTM"><br />
+<input type="hidden" name="ARGNUM" value=4>
+<input type="hidden" name="FUNCNAME" value="run_datafile">
+<input type="hidden" name="VAR2" value="screen"><br />
+<input type="hidden" name="VAR3" value="FULL"><br />
+<input type="submit" name="submit" value="Submit"><br />
+</form></p>
+
+</HTML>
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(org-babel-tangle)
+(browse-url "roster.html")
+#+END_SRC
+
+#+RESULTS:
+: #<process open roster.html>
+
+When you change the roster, you need to run elisp:ta-update-roster which will automatically update students.conf, and roster.org
+
+** gradebook
+This directory contains a grading file for each assignment. The files contain links to each file, and a summary of the grades.
+
+** ../course
+This is the student facing part of the course. The syllabus should go in here, and any course notes/materials. This is a separate git repository.
+
+*************** TODO document the course setup. It is done via gitolite
+*************** END
+
+** ../student-work
+Student repos will be cloned into this directory. This is where you will pull their work after it is collected.
+
+** ../class-work
+Class repos will be cloned here. This is where you pull class repos for analysis.
+
+** ../assignments
+Assignments are referred to by label. There should be a directory with the name "label" for each assignment. The contents of this directory will be copied to student repos, so do not put solutions here!
+
+Each assignment should also contain #+POINTS, #+CATEGORY and #+DUEDATE information, which is added to the syllabus when you use elisp:ta-assign-assignment
+
+You create a new assignment repo simply by:
+
+#+BEGIN_SRC sh
+git clone org-course@techela.cheme.cmu.edu:a/label
+#+END_SRC
+
+This automatically creates the remote repo and local directory. Then, you add your content to it and push it back.
+
+*** TODO how do you update the due dates?
+these always end up changing, and we will need to update the syllabus, and possibly student files.
+
+* Providing anonymous access to the course directory in gitolite
+So that students can get started right away on the first day, we enable anonymous read access to the course directory. Here is how we set that up. Note, this only works for one course.
+
+Add this to your xinet.d directory
+
+[2015-01-11 Sun]
+I do not remember which of these I actually did. I am using a non-anonymous access right now.
+
+/etc/xinetd.d/git-daemon
+#+BEGIN_SRC txt
+# default: off
+# description: The git dæmon allows git repositories to be exported using \
+#       the git:// protocol.
+
+service git
+{
+        disable         = daemon
+        socket_type     = stream
+        wait            = no
+        user            = daemon
+        server          = /usr/bin/git
+        server_args     = daemon --inetd --base-path=/home/f14-06625/repositorie\
+s  --syslog --verbose
+        log_on_failure  += USERID
+}
+
+#+END_SRC
+
+
+/etc/xinetd.d/git
+#+BEGIN_SRC text
+# default: off
+# description: The git dæmon allows git repositories to be exported using \
+#       the git:// protocol.
+
+service git
+{
+        disable         = no
+        socket_type     = stream
+        wait            = no
+        user            = daemon
+        server          = /usr/libexec/git-core/git-daemon
+        server_args     = --base-path=/home/org-course/repositories  --syslog --inetd --verbose
+        log_on_failure  += USERID
+}
+#+END_SRC
+
+Run this to restart all the xinetd instances.
+#+BEGIN_SRC sh
+sudo killall -HUP xinetd
+#+END_SRC
+
+We have to add daemon to the course group.
+#+BEGIN_SRC sh
+usermod -a -G org-course daemon
+#+END_SRC
+
+
+You need to open .gitolite.rc and change
+$REPO_UMASK = 0077;
+
+to
+
+$REPO_UMASK = 0027;
+
+Then, run these. And finally give the group read access to the course repository. Note that you have to give +X access to the parent directories.
+
+#+BEGIN_SRC sh
+chmod g+x /home/org-course
+chmod g+x /home/org-course/repositories
+chmod -R g+rX /home/org-course/repositories/course.git
+#+END_SRC
+
+* Running your course
+** Create assignments
+Each assignment exists in a directory LABEL in gitolite-admin/assignments. In this directory there should be a LABEL.org file. You put the assignment directions in that file. You can put whatever other files you want in the LABEL directory.
+
+You can use elisp:ta-create-assignment to automatically create the directory, the org-file, and the git repo. This will prompt you for important properties of the assignment like the points, category, due date, etc... You will have to create the assignment after that, commit the changes and push them to the server before you assign them.
+
+** Assign assignments
+Assignment is a multistep process. First, you create the assignment, commit and push it to the server. Then, you need to create repos for each student. This is done with elisp:ta-create-assignment-repos. That will create repos for each student that are empty, and with no access for the students. Next, you assign an assignment with elisp:ta-assign-assignment. This will give students access to the assignment, and give them RW access to their repo to turn it in. Finally, an entry in the syllabus is added so the students will know when it is due.
+
+
+** Collect assignments
+
+There are a few steps in collecting an assignment too. The fastest step is to run elisp:ta-collect, which simply changes the student repos to read-only. To view the work, you must run elisp:ta-pull-repos, which will pull all the student work to your local repo.
+
+** Grade assignments
+You have to run elisp:ta-grade, which will collect the assignment, pull them, and generate a grading document with links to each assignment. You will click on each link to grade each assignment. In each assignment, use the functions elisp:gb-feedback, elisp:gb-feedback-typo, and finally elisp:gb-grade. You will be prompted for a letter grade for each category of the rubric. This function will compute the weighted average grade.
+
+** Returning assignments
+Run elisp:ta-return to commit all changes to each student repo and push them back to the server.
+
+
+
+
+*
+
+#+BEGIN_SRC sh
+usermod -a -G f14-06625 daemon
+#+END_SRC
+
+#+BEGIN_EXAMPLE :tangle /etc/xinetd.d/git
+ default: off
+# description: The git dæmon allows git repositories to be exported using \
+#       the git:// protocol.
+
+service git
+{
+        disable         = no
+        socket_type     = stream
+        wait            = no
+        user            = daemon
+        server          = /usr/libexec/git-core/git-daemon
+        server_args     = --base-path=/home/f14-06625/repositories  --syslog --inetd --verbose
+        log_on_failure  += USERID
+}
+#+END_EXAMPLE
+
+permissions
+
+#+BEGIN_EXAMPLE
+ 438  usermod -a -G f14-06625 daemon
+  449  ps aux | grep xinetd
+  450  service xinetd stop
+  451  service xinetd start
+  452  ls
+  453  cd /home/f14-06625/
+  454  ls
+  455  ls -al
+  456  chmod g+x .
+  457  chmod g+x repositories/
+  458  chmod g+x repositories/course
+  459  chmod g+x repositories/course.git/
+  460  ls -al
+  461  ls -al /home/org-course/
+  462  ls -al /home/org-course/repositories/
+  463  ls -al /home/org-course/repositories/course.git/
+  464  ls -al repositories/course.git/
+  465  ls
+  466  chmod -R g+rx repositories/course.git/
+  467  history
+#+END_EXAMPLE
