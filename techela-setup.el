@@ -158,7 +158,12 @@ ENV GIT_SSH=%s git $@
   (delete-file "SYSTEM-INFO")
   (let ((send-mail-function 'smtpmail-send-it)
 	(user-mail-address (gethash "user-mail-address" (tq-config-read-data)))
-	(smtpmail-smtp-server "relay.andrew.cmu.edu")
+	(smtpmail-smtp-server "smtp.andrew.cmu.edu")
+	(smtpmail-smtp-service 587)
+	(smtpmail-stream-type nil)
+	(smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil)))
+	(starttls-use-gnutls t)
+	(starttls-gnutls-program "gnutls-cli")
 	(mail-host-address "andrew.cmu.edu"))
     (message-send-and-exit)))
 
