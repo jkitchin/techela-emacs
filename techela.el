@@ -27,7 +27,8 @@
 ;;; Commentary:
 
 ;;; Code:
-
+(require 'org)
+(require 'org-agenda)
 (require 'net-utils)
 (require 'f)
 (require 'techela-git)
