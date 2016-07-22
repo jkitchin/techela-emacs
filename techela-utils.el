@@ -57,7 +57,7 @@ Optional argument ARGS extra arguments."
   (with-temp-file "SYSTEM-INFO"
     (insert "Created on: " (current-time-string) "\n")
     (insert (format "Name: %s\n" user-full-name))
-    (insert (format "Userid = %s\n" tq-userid))
+    (insert (format "Userid = %s\n" (gethash "user-mail-address" (tq-config-read-data))))
     (insert (format "Email: %s\n" user-mail-address))
     (insert "System name: " (system-name))
     (insert (format "\n%s" system-type))
@@ -276,7 +276,7 @@ python located at: {{python}}
 {{ssh-pub}}
 "
    (ht ("name" user-full-name)
-       ("userid" tq-userid)
+       ("userid" (gethash "user-mail-address" (tq-config-read-data)))
        ("email" user-mail-address)
        ("window-system" window-system)
        ("tempdir" temporary-file-directory)
@@ -289,9 +289,11 @@ python located at: {{python}}
 					     (format "~/techela/%s/techela-config"
 						     tq-current-course)))))
        ("ssh-pub" (with-temp-buffer
-		    (insert-file-contents (expand-file-name (format "~/techela/%s/%s.pub"
-								    tq-current-course
-								    tq-userid)))
+		    (insert-file-contents
+		     (expand-file-name
+		      (format "~/techela/%s/%s.pub"
+			      tq-current-course
+			      (gethash "user-mail-address" (tq-config-read-data)))))
 		    (buffer-string))))))
 
 (provide 'techela-utils)
