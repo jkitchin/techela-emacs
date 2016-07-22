@@ -1,0 +1,10 @@
+(f16-06625
+ :title "Chemical and Reactive Systems"
+ :course-number "06-625"
+ :year 2016
+ :semester "Fall"
+ :instructor "John Kitchin"
+ :instructor-email "jkitchin@andrew.cmu.edu"
+ :course-repo "https://github.com/jkitchin/f16-06625"
+ :techela-server "f16-0625@techela.cheme.cmu.edu")
+
