@@ -137,6 +137,7 @@ ENV GIT_SSH=%s git $@
   ;; now create an email and send the key to the instructor
   (compose-mail)
   (message-goto-from)
+  (message-beginning-of-line)
   (kill-line)
   (insert (gethash "user-mail-address" (tq-config-read-data)))
   (message-goto-to)
