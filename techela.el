@@ -1,5 +1,5 @@
 ;;; techela.el --- functions for students to use in techela courses
-;; Copyright(C) 2014,2015 John Kitchin
+;; Copyright(C) 2014,2015,2016 John Kitchin
 
 ;; Author: John Kitchin <jkitchin@andrew.cmu.edu>
 ;; URL: https://github.com/jkitchin/jmax
@@ -25,165 +25,144 @@
 ;; Boston, MA 02111-1307, USA.
 
 ;;; Commentary:
-;; A techela course has a course-name, and is served on a techela server at
-;; git clone course-name@techela.cheme.cmu.edu:course
-;;
 
 ;;; Code:
 
 (require 'net-utils)
 (require 'f)
+(require 'techela-git)
 (require 'techela-utils)
 (require 'techela-setup)
-(require 'techela-grade)
+(require 'techela-grade)  		; for gb-set-file-tag
+(require 'techela-gradebook)
+(require 'easymenu)
 
-(defvar tq-git-course "https://github.com/jkitchin/"
-  "The git server there the anonymous access course is served.")
+;; * Variables
+(defvar tq-user-root "~/techela"
+  "Root directory to store all techela courses in.")
 
-(defvar tq-git-server "techela.cheme.cmu.edu"
-  "The git server where techela courses are served.")
+(defvar tq-user-config-file nil
+  "Configuration file for user data.")
 
 (defvar tq-root-directory nil
-  "Location to clone the course and student work to.  This location is not a git repository, but will be the name of the course.")
+  "Directory to clone the course and student work to.
+This location is not a git repository, but will be the name of the course.")
 
 (defvar tq-course-directory nil
-  "Directory where the course content is.  This will be a git repository.  It is inside `tq-root-directory'.")
+  "Directory where the course content is.
+This will be a git repository.  It is inside `tq-root-directory'.")
 
-(defvar tq-current-course nil "Store value of current course.")
+(defvar tq-assignment-directory nil
+  "Directory where the assignment repos will be
+It is inside `tq-root-directory'.")
 
-(defvar tq-userid nil "Global variable to store a course userid.")
+(defvar tq-current-course nil
+  "A techela-course struct of the current course.")
 
-(defvar tq-course-files nil "List of org-files that constitute the course.")
+(defvar tq-course-syllabus nil
+  "Derived file for the syllabus.")
 
-(defun tq-check-internet ()
-  "Use ping to see if the server is available"
-  (if (executable-find "ping")
-      (cond
-       ((string= system-type "windows-nt")
-	(unless (= 0
-		   (shell-command "ping -n 1 techela.cheme.cmu.edu"))
-	  (message-box "Unable to contact techela.cheme.cmu.edu.
-Check your internet connection.")
-	  (message "Unable to contact techela.cheme.cmu.edu. Check your internet connection"))
-	t)
+;; * Getting and opening courses
+(defstruct techela-course
+  label title course-number
+  instructor
+  instructor-email
+  semester
+  year
 
-       ((string= system-type "darwin")
-	(unless (= 0
-		   (shell-command "ping -c 1 techela.cheme.cmu.edu"))
-	  (message-box "Unable to contact techela.cheme.cmu.edu.
-Check your internet connection")
-	  (error "Unable to contact techela.cheme.cmu.edu. Check your internet connection."))
-	t)
+  ;; a git-repo containing the course material. 				
+  course-repo 
 
-       (t ;; all other systems
-	(unless (= 0
-		   (shell-command "ping -c 1 techela.cheme.cmu.edu"))
-	  (message-box "Unable to contact techela.cheme.cmu.edu.
-Check your internet connection")
-	  (error "Unable to contact techela.cheme.cmu.edu. Check your internet connection."))
-	t))
-    ;; no ping found !
-    (message "You have no ping executable! I cannot check for internet connectivity.")))
-
-(defun techela-register (course)
-  "Register for COURSE.
-This sets up your local machine and emails the instructor your
-ssh pub key. You cannot access the course until you get an email
-confirmation back."
-  (interactive
-   (list
-    (ido-completing-read
-     "Course name: "
-     (tq-config-get-user-courses))))
-
-  (tq-check-internet)
-
-  ;; Set this for the current session
-  (setq tq-current-course course)
-
-  ;; initialize to nil, just in case they were previously set
-  (setq tq-root-directory (file-name-as-directory
-			   (expand-file-name
-			    course
-			    (expand-file-name "~/techela"))))
-
-  (setq tq-course-directory (expand-file-name "course" tq-root-directory)
-	tq-config-file (expand-file-name ".techela" tq-root-directory))
-
-  ;; make root directory if needed, including parents
-  (unless (file-exists-p tq-root-directory)
-    (make-directory tq-root-directory t))
-
-  ;; load directories to variables if they exist
-  (let ((data (tq-config-read-data)))
-
-    (unless (setq tq-userid (gethash "userid" data))
-      (setq tq-userid (read-from-minibuffer "Enter userid: "))
-      (puthash "userid" tq-userid data)
-      (tq-config-write-data data))
-
-    (ta-setup-user)
-    (ta-setup-ssh)))
+  ;; the techela user@server: course@techela.cheme.cmu.edu
+  techela-server)
 
 
+(defun tq-get-courses ()
+  "Return a list of (cons description struct) for the available courses.
+Available courses are defined in the courses directory."
+  (mapcar (lambda (f)
+	    (with-temp-buffer
+	      (insert-file-contents f)
+	      (let* ((course-data (read (current-buffer)))
+		     (course (apply #'make-techela-course (append '(:label) course-data))))
+		(cons (format "%s - %s"
+			      (techela-course-label course)
+			      (techela-course-title course))
+		      course))))
+	  (f-files
+	   (expand-file-name
+	    "courses"
+	    (file-name-directory (locate-library "techela")))
+	   (lambda (f) (null (f-ext f))))))
+
+
+(defun tq-get-course-struct (label)
+  "Return a course struct for LABEL.
+LABEL is a symbol or string and it must a recipe in the courses directory."
+  (let ((recipe (expand-file-name
+		 (format "courses/%s" label)
+		 (file-name-directory (locate-library "techela")))))
+    (apply #'make-techela-course (append '(:label) (with-temp-buffer
+						     (insert-file-contents recipe)
+						     (read (current-buffer)))))))
+
+
+;; * The main techela function
+;;;###autoload
 (defun techela (course)
-  "Open COURSE.
-If you have not registered for the course, you will be prompted
-for setup information.
-
-The course should exist at COURSE@techela.cheme.cmu.edu:course
-
-The user ssh.pub key must be registered in the course."
+  "Open the techela COURSE.
+COURSE is a struct representing the course that should be
+interactively selected. If you have not registered for the course,
+you will be prompted for setup information."
   (interactive
    (list
-    (ido-completing-read
-     "Course name: "
-     (tq-config-get-user-courses))))
-
-  (tq-check-internet)
-
-  ;; Set this for the current session
-  (setq tq-current-course course)
-
-  ;; initialize to nil, just in case they were previously set
-  (setq tq-root-directory (file-name-as-directory
+    (prog2
+	(tq-check-internet)
+	(let ((courses (tq-get-courses)))
+	  (cdr (assoc (completing-read
+		       "Course name: " courses)
+		      courses))))))
+  
+  (setq tq-current-course course
+	tq-root-directory (file-name-as-directory
 			   (expand-file-name
-			    course
-			    (expand-file-name "~/techela"))))
+			    (format "%s" (techela-course-label course))
+			    (expand-file-name tq-user-root)))
+	tq-course-directory (expand-file-name "course" tq-root-directory)
+	tq-course-syllabus (expand-file-name "syllabus.org" tq-course-directory)
+	tq-assignment-directory (expand-file-name "assignments" tq-root-directory) 
+	tq-user-config-file (expand-file-name "techela-user-config" tq-root-directory))
 
-  (setq tq-course-directory (expand-file-name "course" tq-root-directory)
-	tq-config-file (expand-file-name ".techela" tq-root-directory))
-
-  ;; make root directory if needed, including parents
-  (unless (file-exists-p tq-root-directory)
+  ;; make directories if needed, including parents
+  (unless (file-directory-p tq-root-directory)
     (make-directory tq-root-directory t))
+  
+  (unless (file-directory-p tq-assignment-directory)
+    (make-directory tq-assignment-directory t))
+
+  (unless (file-exists-p tq-user-config-file)
+    (tq-register course))
 
   ;; load directories to variables if they exist
-  (let ((data (tq-config-read-data)))
-
-    (unless (setq tq-userid (gethash "userid" data))
-      (setq tq-userid (read-from-minibuffer "Enter userid: "))
-      (puthash "userid" tq-userid data)
-      (tq-config-write-data data))
-
+  (let ((data (tq-config-read-data))) 
     ;; clone course if we need it. This will be in a repo called "course"
     ;; do not clone if the directory exists.
     (unless (and tq-course-directory (file-exists-p tq-course-directory))
       (let ((default-directory (file-name-as-directory tq-root-directory)))
 	(shell-command (format
-			"git clone %s/%s course"
-			tq-git-course tq-current-course)))))
+			"git clone %s course"
+			(techela-course-course-repo tq-current-course))))))
 
   ;; let user know if an update is needed
   (with-current-directory
-     tq-course-directory
-     (when (> (tq-get-num-incoming-changes) 0)
-       (message "%s is out of date. Please wait while I update it" course)
-       (tq-update-course)
-       (mygit "git checkout origin/master -- syllabus.org")))
+   tq-course-directory
+   (when (> (tq-get-num-incoming-changes) 0)
+     (message "%s is out of date. Please wait while I update it" course)
+     (tq-update-course)
+     (mygit "git checkout origin/master -- syllabus.org")))
 
   ;; now open syllabus
-  (find-file (expand-file-name "syllabus.org" tq-course-directory))
+  (find-file tq-course-syllabus)
   (tq-clean-line-endings)
   (save-buffer)
   (read-only-mode 1)
@@ -195,45 +174,48 @@ The user ssh.pub key must be registered in the course."
 			"lisp/setup.el"
 			tq-course-directory))
     (load-file (expand-file-name
-			"lisp/setup.el"
-			tq-course-directory)))
-  (setq org-id-extra-files (files-in-below-directory tq-course-directory)))
+		"lisp/setup.el"
+		tq-course-directory))))
+
+;;;###autoload
+(defun tq-update-course ()
+  "update everything in the course directory."
+  (interactive)
+  (tq-check-internet)
+  (save-some-buffers t) ;;save all buffers
+  (with-current-directory
+   tq-course-directory
+   (mygit "git stash") 
+   (mygit "git pull origin master")
+   (mygit "git submodule update")
+   (mygit "git stash pop")
+   (mygit "git commit -am \"accepting merge\"")))
+
+;; * Get assignment/turn it in
+(defun tq-get-assigned-assignments ()
+  "Return a list of assignments from the syllabus.
+Assignments are headings that are tagged with :assignment:.  The assignment is
+a link in the heading." 
+  (with-current-buffer (find-file-noselect tq-course-syllabus)
+    (org-map-entries
+     (lambda ()
+       (org-entry-get (point) "CUSTOM_ID"))
+     "assignment")))
 
 
+;;;###autoload
 (defun tq-get-assignment (label)
   "Clone the repo corresponding to LABEL and open the directory."
-  (interactive "sLabel: ")
+  (interactive
+   (list (completing-read "Label: " (tq-get-assigned-assignments))))
   (let ((student-repo-dir (file-name-as-directory
 			   (expand-file-name
 			    label
-			    tq-root-directory))))
-    (if (file-exists-p student-repo-dir)
-	;; This means we have a copy. We should check if it is up to date
-	(with-current-directory
-	 student-repo-dir
-	 (if (not (string= "" (shell-command-to-string
-			       "git status --porcelain")))
-	     ;; There are some local changes. We commit them, pull,
-	     ;; and commit merges if there are any
-	     (progn
-	       (message "Local changes found. Please wait while I save them.")
-	       (mygit "git add *")
-	       (mygit "git commit -am \"my changes\"")
-	       (mygit "git pull")
-	       ;; save any merge issues
-	       (mygit "git add *")
-	       (mygit "git commit -am \"merging my changes\"")
-	       )
-	   ;; we were clean. Let's pull anyway to get remote changes.
-	   (message "Checking for remote changes")
-	   (mygit "git pull"))
+			    tq-assignment-directory))))
 
-	 ;; now, open the file
-	 (find-file (expand-file-name
-		     (concat label ".org")
-		     student-repo-dir)))
-    ;; The repo does not exist, so we make it by cloning it.
-      (let ((default-directory tq-root-directory)
+    ;; Get the assignment by cloning if needed, and rest the remotes.
+    (unless (file-directory-p student-repo-dir)
+      (let ((default-directory tq-assignment-directory)
 	    (repo (format "assignments/%s" label)))
 	;; clone and open label.org
 	(tq-clone-repo repo)
@@ -241,32 +223,46 @@ The user ssh.pub key must be registered in the course."
 	(with-current-directory
 	 student-repo-dir
 	 (mygit "git remote rename origin src")
-	 (mygit
-	  (format "git remote add origin %s@%s:student-work/%s/%s-%s"
-		  tq-current-course
-		  tq-git-server
-		  label
-		  tq-userid
-		  label)))
-	(find-file (expand-file-name (concat label ".org") label))))))
+	 (mygit 
+	  (mustache-render
+	   "git remote add origin {{host}}:student-work/{{label}}/{{userid}}-{{label}}"
+	   (ht ("host" (techela-course-techela-server tq-current-course))
+	       ("label" label)
+	       ("userid" (gethash "user-mail-address" (tq-config-read-data)))))))))
+
+    (with-current-directory
+     student-repo-dir
+     (if (not (string= "" (shell-command-to-string
+			   "git status --porcelain")))
+	 ;; There are some local changes. We commit them, pull,
+	 ;; and commit merges if there are any
+	 (progn
+	   (message "Local changes found. Please wait while I stash and reapply them.")
+	   (mygit "git stash") 
+	   (mygit "git pull origin master")
+	   (mygit "git stash pop"))
+       ;; we were clean. Let's pull anyway to get remote changes.
+       (message "Checking for remote changes")
+       (mygit "git pull origin master"))
+
+     ;; now, open the file
+     (find-file (expand-file-name
+		 (concat label ".org")
+		 student-repo-dir)))))
 
 
+;;;###autoload
 (defun tq-turn-it-in ()
   "Save all buffers, add files, create a SYSTEM-INFO file, commit them and push.
-
 Check *techela log* for error messages."
   (interactive)
-
   (tq-insert-system-info)
 
   ;; Let's assume turning in will work, and set the time.
   (gb-set-filetag "TURNED-IN" (current-time-string))
 
   (save-some-buffers t t)		; make sure all buffers are saved
-
-  ;; add everything in this directory
-  ;; (mygit "git add *")
-
+  
   (let ((status (car (mygit "git commit -am \"turning in\""))))
     (unless (or (= 0 status)		; no problem
 		(= 1 status))		; no change in files
@@ -282,195 +278,53 @@ Check *techela log* for error messages."
     (error "Problem pushing to server.  Check the logs."))
 
   (save-buffer)
-  (message "Woohoo! You turned it in!"))
+  (message
+   (let ((choices '("Woohoo, you turned it in!"
+		    "Awesome, you rocked that turn in!"
+		    "Way to go, you turned it in!"
+		    "Great job, you turned it in!"
+		    "Sweet, you turned it in!"
+		    "Booya, you turned it in!")))
+     (nth (cl-random (length choices)) choices))))
+
+;;;###autoload
+(defun tq-update-my-assignments ()
+  "Open each assignment.
+This will pull"
+  (loop for assignment in (tq-get-assigned-assignments)
+	do
+	(org-open-link-from-string (format "[[assignment:%s]]" assignment))))
 
 
-(defun tq-git-log ()
-  "Show a buffer with the git history for the file associated with the open buffer."
-  (interactive)
-  (when (buffer-file-name)
-    (switch-to-buffer-other-window
-     (get-buffer-create "*git hist*"))
-    (erase-buffer)
-    ;; just to make sure git runs in the right place we temporarily change directory.
-    (with-current-directory
-     (file-name-directory (buffer-file-name))
-     (insert (nth 1 (mygit "git log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=local")))
-     (goto-char (point-min)))))
-
-
-(defun tq-update-course ()
-  "update everything in the current directory."
-  (interactive)
-  (tq-check-internet)
-  (save-some-buffers t) ;;save all buffers
-  (with-current-directory
-   tq-course-directory
-   (mygit "git add *")
-   (mygit "git commit -am \"my changes\"")
-   (mygit "git pull origin master")
-   (mygit "git submodule update")
-   (mygit "git commit -am \"accepting merge\"")))
-
-
-;; TODO - this needs better git logic, using functions from techela-git
-;; we need to check if the file is tracked, and whether it is dirty
-(defun tq-update ()
-  "Update current visited file from git.
-If local changes have been made, they are commited to the local
-repo so a merge can be done."
-  (interactive)
-  (tq-check-internet)
-  (if (not (string= "" (shell-command-to-string
-			  (concat "git status --porcelain "
-				  (file-name-nondirectory
-				   (buffer-file-name))))))
-      ;; the file is dirty. We will commit the results. so we can
-      ;; pull. This may result in a conflict later that we have to merge.
-      (progn
-	(message "It looks like you have made changes to this file. There may be conflicting changes when we merge the update with your changes. These will look like:
-<<<<<<<< HEAD
-Your changes
-========
-Changes on the server
->>>>>>>> some-random-git hash characters
-These will be committed so that future merges are possible. You should probably keep the server version to avoid future conflicts.")
-
-	;; first, we commit our changes.
-	(save-some-buffers t)
-	(mygit "git add *")
-	(shell-command (concat "git commit -am \"my changes\""))
-
-	;; now get remotes
-	(mygit "git pull origin master")
-	;; and now we commit our changes. This may result in
-	;; conflicts. We will just accept them and move on.
-	(shell-command "git commit -a -m \"accepting merge\""))
-  ;; it looks like we were clean
-  (mygit "git pull origin master")
-  (revert-buffer t t)))
-
-
+;; * Course agenda
 ;; This sets up an agenda view of the course assignments
 (add-to-list 'org-agenda-custom-commands
-      '("c" "Course Agenda"
-          (
-           ;; deadlines
-          (tags-todo "+DEADLINE>=\"<today>\""
-                     ((org-agenda-overriding-header "Press q to quit\nUpcoming Deadlines")
-		      ))
+	     '("c" "Course Agenda"
+	       ((tags-todo "+DEADLINE>=\"<today>\""
+			   ((org-agenda-overriding-header
+			     "Press q to quit\nUpcoming Deadlines")))
+		;; now the agenda
+		(agenda ""
+			((org-agenda-overriding-header "two week agenda")
+			 (org-agenda-ndays 14)
+			 (org-agenda-tags-todo-honor-ignore-options t)
+			 (org-agenda-todo-ignore-scheduled nil)
+			 (org-agenda-todo-ignore-deadlines nil)
+			 (org-deadline-warning-days 0)
+			 ))
 
-          ;; now the agenda
-	  (agenda ""
-		  ((org-agenda-overriding-header "two week agenda")
-		   (org-agenda-ndays 14)
-		   (org-agenda-tags-todo-honor-ignore-options t)
-		   (org-agenda-todo-ignore-scheduled nil)
-		   (org-agenda-todo-ignore-deadlines nil)
-		   (org-deadline-warning-days 0)
-		   ))
+		;; and last a global todo list
+		(todo "TODO"))))
 
-	  ;; and last a global todo list
-          (todo "TODO"))) ;; review waiting items ...other commands
-			     ;; here
-        )
-
-
-(defun tq-agenda()
-  "Show the agenda from the syllabus"
+;;;###autoload
+(defun tq-agenda ()
+  "Show the course agenda from the syllabus."
   (interactive)
-  (let ((org-agenda-files
-	 `(,(expand-file-name "syllabus.org" tq-course-directory))))
-    (org-agenda "" "t")))
+  (let ((org-agenda-files (list tq-course-syllabus)))
+    (org-agenda "" "c")))
 
 
-(defun tq-email-tas ()
-    "Construct and send an email to the TAs."
-  (interactive)
-  ; now create the body of the email
-  (let ((email-body
-	 (format "Type your note below here, and press C-c C-c when you are done to send it:
-
-
-======================================================
-file: %s
-line %s: %s
-repo remote origin: %s
-======================================================"
-		 (buffer-file-name)
-		 (what-line)
-		 (thing-at-point 'line)
-		 (nth 1 (mygit "git config --get remote.origin.url")))))
-
-    (compose-mail-other-frame)
-    (message-goto-to)
-    (insert "hthiruma@andrew.cmu.edu,irems@andrew.cmu.edu")
-    (message-goto-subject)
-    (insert (format "[%s] email" tq-current-course))
-    (message-goto-body)
-    (insert email-body)
-    (message-goto-body) ; go back to beginning of email body
-    (next-line 2)         ; and down two lines
-    (message "Type C-c C-c to send message")))
-
-
-(defun tq-email ()
-  "Construct and send an email to the instructor."
-  (interactive)
-  ; now create the body of the email
-  (let ((email-body
-	 (format "Type your note below here, and press C-c C-c when you are done to send it:
-
-
-======================================================
-file: %s
-line %s: %s
-repo remote origin: %s
-======================================================"
-		 (buffer-file-name)
-		 (what-line)
-		 (thing-at-point 'line)
-		 (nth 1 (mygit "git config --get remote.origin.url")))))
-
-    (compose-mail-other-frame)
-    (message-goto-to)
-    (insert "jkitchin@andrew.cmu.edu")
-    (message-goto-subject)
-    (insert (format "[%s] email" tq-current-course))
-    (message-goto-body)
-    (insert email-body)
-    (message-goto-body) ; go back to beginning of email body
-    (next-line 2)         ; and down two lines
-    (message "Type C-c C-c to send message")))
-
-
-(defun tq-send-error-report ()
-  "Send an error report to the instructor."
-  (interactive)
-  (compose-mail-other-frame)
-   (message-goto-to)
-   (insert "jkitchin@andrew.cmu.edu")
-   (message-goto-subject)
-   (insert (format "[%s] debug report" tq-current-course))
-   (message-goto-body)
-   (insert "Tell me what you were doing. Then press C-c C-c to send the message.
-
-
-Messages\n==========\n")
-   (when (get-buffer "*mygit-process*")
-     (insert (with-current-buffer "*mygit-process*" (buffer-string)))
-     (insert "\n"))
-   (when (get-buffer "*techela log*")
-     (insert (with-current-buffer "*techela log*" (buffer-string)))
-     (insert "\n"))
-   (message-goto-body) ; go back to beginning of email body
-
-   (next-line 2)         ; and down two lines
-
-   (message "Type C-c C-c to send message"))
-
-
-;;;; links
+;; * links
 
 ;; This downloads the assignment repo for the student to work in
 (org-add-link-type
@@ -478,6 +332,7 @@ Messages\n==========\n")
  (lambda (arg)
    (tq-check-internet)
    (tq-get-assignment arg)))
+
 
 ;; download the solution
 (org-add-link-type
@@ -497,9 +352,8 @@ Messages\n==========\n")
 	   ;; update just for good measure
 	   (tq-update))
        ;; no file
-       (mygit (format "git clone %s@%s:solutions/%s"
-		      tq-current-course
-		      tq-git-server
+       (mygit (format "git clone %s:solutions/%s"
+		      (techela-course-git-server tq-current-course)
 		      label))
        (find-file (concat label "/" label ".org")))))))
 
@@ -509,20 +363,13 @@ Messages\n==========\n")
 (org-add-link-type
  "exercise"
  (lambda (arg)
-     (tq-check-internet)
+   (tq-check-internet)
    (tq-get-assignment arg)))
 
-;; index link for techela
-(org-add-link-type
- "tq-index"
- (lambda (path)
-   (tq-index)
-   (occur path)))
 
-(require 'techela-gradebook)
+;; multiple choice link.
 (org-add-link-type
  "mc"
- ;; multiple choice link.
  (lambda (link)
    (org-entry-put (point) "ANSWER" link)
    (save-restriction
@@ -533,15 +380,18 @@ Messages\n==========\n")
 	 (insert "\n"))
        (gb-set-filetag (org-entry-get (point) "ID") link)))))
 
+
 ;; Link to record answers. ans:label::data
-;; save in tq-userid-label-data.dat
+;; save in userid-label-data.dat
 (org-add-link-type
  "ans"
  (lambda (path)
    (let* ((fields (split-string path "::"))
 	  (label (nth 0 fields))
 	  (data (nth 1 fields))
-	  (data-file (format "%s-%s.dat" tq-userid label)))
+	  (data-file (format "%s-%s.dat"
+			     (gethash "user-mail-address" (tq-config-read-data))
+			     label)))
      (with-temp-file data-file
        (insert data))
      (mygit (format "git add %s" data-file))
@@ -549,12 +399,8 @@ Messages\n==========\n")
      (mygit "git push origin master"))))
 
 
-(defun tq-quit ()
-  "Quit techela."
-  (interactive)
-  (techela-mode -1))
-
-
+;; * email functions
+;;;###autoload
 (defun tq-submit-by-email ()
   "Submit contents of current `default-directory' as a zip file attached to an email.
 This is normally only done after the deadline, when you cannot push to the git repo, or when there is some issue with the git server. There must be extenuating circumstances for this to be used."
@@ -564,10 +410,12 @@ This is normally only done after the deadline, when you cannot push to the git r
   (unless (executable-find "zip")
     (error "Could not find a zip executable."))
 
-  (let ((zip-name (concat tq-userid "-"
-			  (file-name-sans-extension
-			   (file-name-nondirectory
-			    (buffer-file-name))))))
+  (let ((zip-name (concat 
+		   (gethash "user-mail-address" (tq-config-read-data))
+		   "-"
+		   (file-name-sans-extension
+		    (file-name-nondirectory
+		     (buffer-file-name))))))
     ;; update system file
     (tq-insert-system-info)
     (gb-set-filetag "TURNED-IN-BY-EMAIL:" (current-time-string))
@@ -581,8 +429,8 @@ This is normally only done after the deadline, when you cannot push to the git r
     (mygit "git add *")
 
     (let ((status (car (mygit "git commit -am \"saving for email submit\""))))
-      (unless (or (= 0 status)  ; no problem
-		  (= 1 status)) ; no change in files
+      (unless (or (= 0 status)		; no problem
+		  (= 1 status))		; no change in files
 	(switch-to-buffer "*techela log*")
 	(error "Problem committing.  Check the logs")))
 
@@ -599,31 +447,67 @@ This is normally only done after the deadline, when you cannot push to the git r
     (insert "jkitchin@andrew.cmu.edu")
     (message-goto-subject)
     (insert (format "[%s email turnin]" tq-current-course))
-    (message-send-and-exit)
-    ))
+    (message-send-and-exit)))
 
 
-(defun tq-get-assigned-assignments ()
-  "Return a list of assignments from the syllabus.
-Assignments are headings that are tagged with :assignment:.  The assignment is
-a link in the heading."
+;;;###autoload
+(defun tq-email ()
+  "Construct and send an email to the instructor."
   (interactive)
-  (save-current-buffer
-    (find-file  (expand-file-name "syllabus.org" tq-course-directory))
-    (org-map-entries
-     (lambda ()
-       (org-entry-get (point) "CUSTOM_ID"))
-     "assignment")))
+  (let ((email-body
+	 (format "Type your note below here, and press C-c C-c when you are done to send it:
 
 
-(defun tq-update-my-assignments ()
-  "Open each assignment.
-This will pull"
-  (loop for assignment in (tq-get-assigned-assignments)
-	do
-	(org-open-link-from-string (format "[[assignment:%s]]" assignment))))
+======================================================
+file: %s
+line %s: %s
+repo remote origin: %s
+======================================================"
+		 (buffer-file-name)
+		 (what-line)
+		 (thing-at-point 'line)
+		 (nth 1 (mygit "git config --get remote.origin.url")))))
+
+    (compose-mail-other-frame)
+    (message-goto-to)
+    (insert (techela-course-instructor-email tq-current-course))
+    (message-goto-subject)
+    (insert (format "[%s] email" (symbol-name (techela-course-label tq-current-course))))
+    (message-goto-body)
+    (insert email-body)
+    (message-goto-body) ; go back to beginning of email body
+    (next-line 2)         ; and down two lines
+    (message "Type C-c C-c to send message")))
+
+;;;###autoload
+(defun tq-send-error-report ()
+  "Send an error report to the instructor."
+  (interactive)
+  (compose-mail-other-frame)
+  (message-goto-to)
+  (insert (techela-course-instructor-email tq-current-course))
+  (message-goto-subject)
+  (insert (format "[%s] debug report" (symbol-name (techela-course-label tq-current-course))))
+  (message-goto-body)
+  (insert "Tell me what you were doing. Then press C-c C-c to send the message.
 
 
+Messages\n==========\n")
+  (when (get-buffer "*mygit-process*")
+    (insert (with-current-buffer "*mygit-process*" (buffer-string)))
+    (insert "\n"))
+  (when (get-buffer "*techela log*")
+    (insert (with-current-buffer "*techela log*" (buffer-string)))
+    (insert "\n"))
+  (message-goto-body) ; go back to beginning of email body
+
+  (next-line 2)         ; and down two lines
+
+  (message "Type C-c C-c to send message"))
+
+;; * Grade report
+
+;;;###autoload
 (defun tq-grade-report ()
   "Generate a *grade report* buffer with a summary of the graded assignments."
   (interactive)
@@ -641,8 +525,7 @@ This will pull"
 	  (category)
 	  (fname))
       (with-current-buffer (find-file-noselect
-			    (expand-file-name "syllabus.org"
-					      tq-course-directory))
+			    tq-course-syllabus)
 	(save-restriction
 	  (widen)
 	  (beginning-of-buffer)
@@ -665,7 +548,7 @@ This will pull"
 	       (mygit "git pull origin master")
 	       ;; accept conflicts if there are any
 	       (mygit "git commit -am \"accepting merge\""))
-	       )
+	     )
 
 	    ;; The student assignment will be in root/label/label.org
 	    (setq fname (expand-file-name (concat label "/" label ".org") tq-root-directory))
@@ -674,28 +557,27 @@ This will pull"
 	      (setq grade (gb-get-grade fname)))
 
 	    (insert (format "|[[%s][%s]]|  %10s|%20s|%20s|\n" fname label grade points category)))
-      ;; no dir found
-      (insert (format "|%s|not found|%20s|%20s|\n" label points category)))))
-    (previous-line)
-    (org-ctrl-c-ctrl-c)
-    (goto-char (point-min))
-    (switch-to-buffer "*grade report*"))
+	;; no dir found
+	(insert (format "|%s|not found|%20s|%20s|\n" label points category)))))
+  (previous-line)
+  (org-ctrl-c-ctrl-c)
+  (goto-char (point-min))
+  (switch-to-buffer "*grade report*"))
 
-;;;; menu and minor mode
-
-(require 'easymenu)
-
+;; * menu and minor mode
+;;;###autoload
 (defun tq-open-syllabus ()
   "Open the course syllabus."
   (interactive)
-  (find-file (expand-file-name "syllabus.org" tq-course-directory))
+  (find-file tq-course-syllabus)
   (read-only-mode 1))
 
 (defvar techela-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c e") 'tq-email)
+    ;; no key-bindings for now.
     map)
   "Keymap for function `techela-mode'.")
+
 
 (easy-menu-define techela-menu techela-mode-map "Techela menu"
   '("techela"
@@ -706,50 +588,11 @@ This will pull"
     ["Table of contents" tq-toc t]
     ["Course index" tq-index t]
     ["Course agenda" tq-agenda t]
-    ;;    ("Assignments") this was originally a place for a dynamic
-    ;; menu of assignments and grades, but I never got it to perform
-    ;; well. There were too many updates to the menu and it caused
-    ;; poor performance.
     ["Get grade report" tq-grade-report t]
     ["Email instructor" tq-email t]
-    ["Email TAs" tq-email-tas t]
     ["Update current file" tq-update t]
     ["Send error report" tq-send-error-report t]
-    ["Quit techela" tq-quit t]
-    ["Turn on pycheck" jmax-activate-pycheck t]
-    ["Turn off pycheck" jmax-deactivate-pycheck t]
-    ["Run pycheck" org-py-check t]
-    ))
-
-
-(defun tq-get-assignment-menu ()
-  "Calculate the list of assignments and their grades for the techela menu."
-  ;; add dynamic assignments
-  (message "updating techela menu")
-  (let ((entries '()))
-    (dolist (label (tq-get-assigned-assignments))
-      ;; see if we can get the grade
-      ;; The student assignment will be in root/label
-      (let* ((fname (expand-file-name
-		     (concat label "/" label ".org") tq-root-directory))
-	     (grade))
-
-	(when (file-exists-p fname)
-	  (message "getting grade for %s" fname)
-	  (setq grade (gb-get-grade fname)))
-
-	(add-to-list 'entries (vector (concat label
-					      (when grade (format " (%s)" grade)))
-				      `(tq-get-assignment ,label) t))))
-
-    ;; now we update the Assignments menu
-    (easy-menu-add-item
-     techela-menu
-     '()
-     (easy-menu-create-menu
-      "Assignments"
-      entries))
-    ))
+    ["Quit techela" tq-quit t]))
 
 
 (define-minor-mode techela-mode
@@ -758,19 +601,13 @@ This will pull"
 \\{techela-mode-map}"
   :lighter " techela"
   :global t
-  :keymap techela-mode-map
+  :keymap techela-mode-map)
 
-  ;; (if techela-mode
-  ;;     (progn
-  ;;	;; this makes it update each time you check the menu
-  ;;	(tq-get-assignment-menu)
-  ;;	(add-hook 'menu-bar-update-hook 'tq-get-assignment-menu))
-  ;;   ;;else we are leaving techela mode
-  ;;   (remove-hook 'menu-bar-update-hook 'tq-get-assignment-menu))
-
-  )
-
-
+;;;###autoload
+(defun tq-quit ()
+  "Quit techela."
+  (interactive)
+  (techela-mode -1))
 
 (provide 'techela)
 

@@ -4,13 +4,86 @@
 ;;; Commentary:
 ;;
 
-;; (require 'git-modeline)
-
-
-
 ;;; Code:
+(defvar *GIT_SSH* nil
+  "the wrapper script for ssh")
 
-(defun ta-git-n-commits ()
+
+(defmacro with-current-directory (directory &rest body)
+  "Set the working directory temporarily set to DIRECTORY and run BODY.
+DIRECTORY is expanded"
+  `(let ((default-directory (file-name-as-directory
+			     (expand-file-name ,directory))))
+     ,@body))
+
+
+(defun mygit (git-command)
+  "Run GIT-COMMAND in custom environment.
+
+For example:
+ (mygit \"git clone org-course@techela.cheme.cmu.edu:course\")
+
+Sets GIT_SSH to `*GIT_SSH*', and temporarily modifies the process
+environment before running git. `*GIT_SSH*' points to a shell
+script that runs ssh in batch mode.
+
+returns (status output)"
+  (interactive "sgit command: ")
+  (setq *GIT_SSH*
+	(format
+	 "GIT_SSH=%s"
+	 (expand-file-name
+	  "techela_ssh"
+	  tq-root-directory)))
+  (let ((process-environment (cons *GIT_SSH* process-environment))
+        (status) (output))
+    (when (get-buffer "*mygit-process*") (kill-buffer "*mygit-process*"))
+    (tq-log "\nmygit Running \"%s\"\n  CWD = %s" git-command default-directory)
+    (setq status (call-process-shell-command git-command nil "*mygit-process*"))
+    (setq output (with-current-buffer "*mygit-process*" (buffer-string)))
+    (tq-log "  status = %s" status)
+    (tq-log "  output = %s" output)
+    (list status output)))
+
+(defun tq-in-git-p (&optional debug)
+  "Return status for whether `default-directory' is in a git repo.
+Optional argument DEBUG switch to output buffer if the command fails."
+  (interactive)
+  (mygit "git rev-parse --is-inside-work-tree"))
+
+
+(defun tq-get-num-incoming-changes ()
+  "Return number of commits the remote is different than local."
+  (interactive)
+  (unless (tq-in-git-p)
+    (error "You are not in a git repo.  We think you are in %s" default-directory))
+  (mygit "git fetch origin")
+  (string-to-number (nth 1 (mygit "git rev-list HEAD...origin/master --count"))))
+
+
+(defun tq-clone-repo (repo)
+  "Clone REPO from the techela-server into current directory if needed.
+If REPO exists, do not do anything.  REPO should not have the extension .git on
+it.  If you want to clone it somewhere else, use `let' to temporarily define
+`default-directory'."
+  (if (file-exists-p (f-filename repo))
+      repo
+    (when (not (= 0 (car (mygit (format "git clone %s:%s.git"
+					(techela-course-techela-server tq-current-course)
+					repo)))))
+      (switch-to-buffer "*techela log*")
+      (error "Problem cloning %s" repo))
+    repo))
+
+
+(defun tq-clone-and-open (repo)
+  "Clone REPO and open it."
+  (let ((default-directory tq-root-directory))
+    (tq-clone-repo repo)
+    (find-file (expand-file-name (concat repo ".org") repo))))
+
+
+(defun tq-git-n-commits ()
   "Return how many commits differ locally and remotely.
 
 \(0 0) means you are up to date as far as commits go
@@ -32,7 +105,7 @@
     (list local-changes remote-changes)))
 
 
-(defun ta-git-n-untracked-files ()
+(defun tq-git-n-untracked-files ()
   "Return number of untracked files.
 These are files with ?? in them from git status --porcelain"
   (interactive)
@@ -45,22 +118,23 @@ These are files with ?? in them from git status --porcelain"
     n))
 
 
-(defun ta-git-n-modified-files ()
+(defun tq-git-n-modified-files ()
   "Return number of modified, but uncommitted files.
 These are files with M in them from git status --porcelain"
-    (let ((n 0))
-      (dolist (line (split-string
-		     (shell-command-to-string "git status --porcelain")
-		     "\n"))
-	(when (string-match "^ M" line)
-	  (setq n (+ 1 n))))
-      n))
+  (let ((n 0))
+    (dolist (line (split-string
+		   (shell-command-to-string "git status --porcelain")
+		   "\n"))
+      (when (string-match "^ M" line)
+	(setq n (+ 1 n))))
+    n))
 
 
-(defun ta-git-buffer-tracked-p ()
+(defun tq-git-buffer-tracked-p ()
   "Return if the file the buffer is visiting is tracked by git.
 
-git ls-files filename returns an empty string if filename is not under git control"
+git ls-files filename returns an empty string if filename is not
+under git control"
   (interactive)
   (not (string=
 	""
@@ -70,7 +144,7 @@ git ls-files filename returns an empty string if filename is not under git contr
 		  (buffer-file-name)))))))
 
 
-(defun ta-git-buffer-modified-p ()
+(defun tq-git-buffer-modified-p ()
   "Return if the file the buffer is visiting has been modified.
 
 Save the buffer first.
@@ -78,7 +152,7 @@ git status --porcelain filename
 returns \" M filename
 \" when the file is modified."
   (interactive)
-  (when (ta-git-buffer-tracked-p)
+  (when (tq-git-buffer-tracked-p)
     (save-buffer)
     (string-match
      "^ M"
@@ -88,7 +162,7 @@ returns \" M filename
 	       (buffer-file-name)))))))
 
 
-(defvar ta-git-unmerged-states
+(defvar tq-git-unmerged-states
   '(("D" "D")
     ("A" "U")
     ("U" "D")
@@ -98,10 +172,12 @@ returns \" M filename
     ("U" "U"))
   "List of XY states a file can be in that indicate an unmerged state.")
 
-(defun ta-git-make-repo-clean ()
+(defun tq-git-make-repo-clean ()
   "Handle every line in git status --porcelain and leave repo in clean state.
 
-This may happen before or after a merge.  Before a merge, we handle each line.  After a merge, we add everything at once, and then commit the merge."
+This may happen before or after a merge. Before a merge, we
+handle each line. After a merge, we add everything at once, and
+then commit the merge."
   (interactive)
 
   (let* ((merge-p nil)
@@ -116,7 +192,7 @@ This may happen before or after a merge.  Before a merge, we handle each line.  
 			     (FROM (nth 0 PATHS))
 			     ;; for a rename there will be PATH1 -> PATH2
 			     (TO (if (= 3 (length PATHS)) (nth 2 PATHS) nil)))
-			(when (-contains? ta-git-unmerged-states (list X Y))
+			(when (-contains? tq-git-unmerged-states (list X Y))
 			  (setq merge-p t))
 			(message "%s" (list X Y FROM TO line))
 			(list X Y FROM TO line)))))
@@ -175,7 +251,7 @@ This may happen before or after a merge.  Before a merge, we handle each line.  
 	      (mygit (format "git commit %s -m \"%s\"" FROM LINE))))))))
 
 
-(defun ta-git-update-file ()
+(defun tq-git-update-file ()
   "Update the current file.
 
 This is tricky because we cannot just pull a file. We have to save all files, commit them, then pull. It may be the case that this causes a merge conflict, which we then need to address.
@@ -190,7 +266,7 @@ The strategy is to check git status --porcelain first, and get the repo into a c
    (s-trim
     (shell-command-to-string "git rev-parse --show-toplevel"))
    ;; first clean the repo
-   (ta-git-make-repo-clean)
+   (tq-git-make-repo-clean)
 
    ;; Next we are going to fetch
    (mygit "git fetch")
@@ -200,9 +276,10 @@ The strategy is to check git status --porcelain first, and get the repo into a c
 
    ;; there may be merge conflicts. we take them, and make the repo
    ;; clean again.
-   (ta-git-make-repo-clean)
-   (revert-buffer t t) ;; update this buffer
-   ))
+   (tq-git-make-repo-clean)
+
+   ;; update this buffer
+   (revert-buffer t t)))
 
 (provide 'techela-git)
 

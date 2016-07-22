@@ -1,0 +1,76 @@
+#+STARTUP: showall
+* gitolite-admin is dirty (↑0|↓0)
+  :PROPERTIES:
+  :VISIBILITY: folded
+  :END:
+git status:
+?? assignments.org
+
+
+#+BEGIN_SRC emacs-lisp
+ (with-current-directory tq-gitolite-admin-dir
+   (mygit "git add *")
+   (mygit "git commit -m \"committing everything\"")
+   (mygit "git push")
+   (tq-status))
+#+END_SRC
+
+* Course is clean (↑0|↓0)
+* Assignment statuses
+  :PROPERTIES:
+  :VISIBILITY: folded
+  :END:
+
+Reminder to self: need to decide what status means here.
+
+* Menu of options
+
+** Admin Actions
+
+- [[elisp:(find-file tq-gitolite-admin-dir)][Open the admin directory]]
+
+- [[elisp:(find-file (expand-file-name "gradebook" tq-gitolite-admin-dir))][Open the gradebook directory]]
+
+** Course Actions
+
+- [[elisp:(find-file tq-course-directory)][Open the course directory]] [[elisp:(find-file (expand-file-name "syllabus.org" tq-course-directory))][Syllabus]]
+
+- [[elisp:(tq-roster)][Send email]]
+
+- [[elisp:(find-file (expand-file-name "roster.org" tq-gitolite-admin-dir))][Open the roster.org]]
+
+- [[elisp:tq-check-pub-keys][Check ssh keys]]
+
+** Assignment Actions
+
+- [[elisp:(find-file tq-course-assignments-dir)][Open the assignments directory]]
+- [[elisp:(find-file tq-course-student-work-dir)][Open student work directory]]
+- [[elisp:tq-pull-repos][Update student repos]] (pulls them all locally.)
+
+- [[elisp:tq-create-assignment][Create or edit an assignment]]
+- [[elisp:tq-create-solution][Create or edit solution]]
+- [[elisp:tq-release-solution][Release a solution (give students read-access)]]  [[elisp:tq-close-solution][Close a solution (remove read access)]]
+
+- [[elisp:tq-create-assignment-repos][Create class repos for an assignment]] (no student access until you assign it.)
+
+- [[elisp:tq-assign-assignment to class][Assign an assignment]] (give students RW access)
+- [[elisp:tq-collect][Collect an assignment from class]] (change students to R access. Does not pull.)
+- [[elisp:tq-pull-repos][Pull an assignment from class]] (get local copies of assignment. Does not change permissions.)
+
+
+- [[elisp:tq-grade][Grade an assignment for class]] (collect and pull repos. create grading list)
+- [[elisp:tq-return][Return an assignment to class]] (push local copies to server)
+
+- [[elisp:tq-show-assigned-assignments][Show list of assigned assignments]]
+
+- [[elisp:tq-helm-gradebook][Gradebook]]
+
+*** Individual Student Actions
+
+- [[elisp:tq-assign-to][Assign assignment to a student. give RW access]]
+- [[elisp:tq-collect-from][Collect assignment from a student. Make R access]]
+- [[elisp:tq-open-assignment][Open a student assignment. Pulls first.]]
+- [[elisp:tq-return-to][Return your changes in an assignment to a student]]
+
+- [[elisp:tq-email][Email a student]]
+

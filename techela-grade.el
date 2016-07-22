@@ -1,9 +1,19 @@
 ;;; techela-grade.el --- Functions for grading techela assignments
 
 ;;; Commentary:
-;; These are functions to facilitate grading in techela courses
+;; 
 
 ;;; Code:
+
+(defvar tq-rubrics '(("homework" . (("\"technical\"" . 0.7)
+				    ("\"presentation\"" . 0.3)))
+		     ("exam" . (("\"technical\"" . 0.7)
+				("\"presentation\"" . 0.3)))
+		     ("multiple-choice" . (("\"participation\"" . 1.0)))
+		     ("participation" . (("\"participation\"" . 1.0))))
+  "List of rubrics for assignments. Each element should be a list
+  of components in alist form.")
+
 
 (defvar gb-MULTIPLIERS
   '(("A++" . 1.0)
@@ -34,14 +44,15 @@
 
 
 (defun gb-fraction-to-lettergrade (fraction)
-  "Return the letter grade associated with FRACTION."
+  "Return the letter grade associated with FRACTION.
+For example, 0.79 is associated with a B+, and 0.81 is associated
+with an A/B."
   (let ((tuples (reverse gb-MULTIPLIERS))
 	(last-letter-grade))
     (setq tuples (remove '("WAIVED" . nil) tuples))
     (setq tuples (remove '("P" . 1.0) tuples))
     (setq tuples (remove '("F" . 1.0) tuples))
-
-
+    
     (catch 'grade
       (dolist (tuple tuples)
 	(let ((lettergrade (car tuple))
@@ -51,75 +62,10 @@
 	      (throw 'grade last-letter-grade))
 	    (setq last-letter-grade lettergrade)))))))
 
-(defun gb-feedback (comment)
-  "Insert feedback in an org file.  Bound to \\[gb-feedback].
-
-This is a little fragile because it uses positions in links.  These change if you add COMMENTs, or footnotes, or modify the document.  Markers would be one solution to this, but I am not sure these can be saved."
-  (interactive "sComment: ")
-
-  ;; get location
-  (let ((current-point (point))
-        (current-line (count-lines (point-min) (point))))
-
-    (save-excursion
-      (goto-char (point-min))
-      (unless (re-search-forward "* feedback\n" (point-max) 'end)
-        (insert "\n* feedback\n"))
-
-      (save-restriction
-	;; (org-narrow-to-subtree)
-	(goto-char (point-max))
-	(insert  (format "[[elisp:(goto-char %s)][(%s) line %s:]] %s\n\n"
-			 current-point (user-login-name)  current-line comment ))))))
-
-
-(defun gb-insert-footnote (note)
-  "Create a new footnote with NOTE in the current file.
-The footnote will be surrounded by a space on each side.  Cursor is
-placed after the new link when it is done."
-  (interactive "sNote: ")
-  (insert " ")
-  (org-mark-ring-push)
-  (org-footnote-new)
-  (insert note)
-  (org-mark-ring-goto)
-  (forward-char 6)
-  (insert " "))
-
-
-(defun gb-insert-comment ()
-  "Insert a comment line of form \"# (ta-userid): \"."
-  (interactive)
-  (insert (format "\n# (%s): \n" ta-userid))
-  (previous-line)
-  (end-of-line))
-
-
-(defun gb-feedback-typo()
-  "insert typo feedback. Bound to \\[gb-feedback-typo]."
-  (interactive)
-
-  ;; get location
-  (let ((current-point (point))
-        (current-line (count-lines (point-min) (point))))
-    (save-excursion
-      (goto-char (point-min))
-      (unless (re-search-forward "* feedback\n" (point-max) 'end)
-        (insert "\n* feedback\n"))
-
-      (goto-char (point-max))
-      (let ((ntypos (gb-get-filetag "NTYPOS")))
-	(if ntypos
-	    (gb-set-filetag "NTYPOS" (+ 1 (string-to-int ntypos)))
-	  (gb-set-filetag "NTYPOS" 1)))
-      (insert  (format "[[elisp:(goto-char %s)][(%s) line %s:]] typo\n\n"
-                       current-point (user-login-name)  current-line)))))
-
 
 (defun gb-ontime-p ()
-  "Return if the assignment is on time."
-  (interactive)
-
+  "Return if the assignment is on time.
+This means it is turned in before 23:59:59 on the day it is due." 
   (let ((duedate (replace-regexp-in-string
 		  ">"
 		  " 23:59:59>" (gb-get-filetag "DUEDATE")))
@@ -129,16 +75,19 @@ placed after the new link when it is done."
     (org-time< turned-in duedate)))
 
 
+;;;###autoload
 (defun gb-grade ()
-  "Run a rubric function to insert the grade.
-This assumes the assignment label is the filename you are in."
+  "Insert a grade in the buffer.
+Uses the rubric for the assignment and calculates the overall
+grade. This assumes the assignment label is the filename you are
+in."
   (interactive)
   (save-window-excursion
     (let ((rubric)
 	  (label (file-name-sans-extension
 		  (file-name-nondirectory (buffer-name))))
 	  (cb (current-buffer))
-	  (tbuf (find-file-noselect (expand-file-name "syllabus.org" ta-course-dir))))
+	  (tbuf (find-file-noselect (expand-file-name "syllabus.org" tq-course-dir))))
       (unless (-contains? (ta-get-assigned-assignments) label)
 	(error "%s is not an assignment" label))
 
@@ -153,10 +102,10 @@ This assumes the assignment label is the filename you are in."
       (set-buffer cb)
       (kill-buffer tbuf)
 
-      ;; Now, loop over rubric
+      ;; Now, loop over rubric and enter grades for each category
       (setq categories (mapcar (lambda (x) (car x)) rubric))
       (setq LGS (mapcar (lambda (cell)
-			  (ido-completing-read
+			  (completing-read
 			   (concat
 			    (cond
 			     ((symbolp (car cell))
@@ -164,7 +113,8 @@ This assumes the assignment label is the filename you are in."
 			     ((stringp (car cell))
 			      (car cell)))
 			    ": ")
-			   (mapcar (lambda (x) (car x)) gb-MULTIPLIERS))) rubric))
+			   (mapcar (lambda (x) (car x)) gb-MULTIPLIERS)))
+			rubric))
 
       (setq multipliers (mapcar (lambda (LG) (cdr (assoc LG gb-MULTIPLIERS)))
 				LGS))
@@ -175,8 +125,7 @@ This assumes the assignment label is the filename you are in."
       (goto-char (point-min))
       (unless (re-search-forward "* Grade" (point-max) 'end)
 	(insert "\n* Grade\n"))
-
-					; (org-open-link-from-string "[[*Grade]]")
+      
       (cl-mapcar (lambda (category grade) (gb-set-filetag category grade))
 		 categories LGS)
       (gb-set-filetag "GRADE" (format "%1.3f" grade))
@@ -187,10 +136,8 @@ This assumes the assignment label is the filename you are in."
       (kill-buffer))))
 
 
-;; see http://kitchingroup.cheme.cmu.edu/blog/2013/05/05/Getting-keyword-options-in-org-files/
 (defun gb-get-grade (fname)
-  "Open file FNAME and get grade."
-  (interactive "fFile: ")
+  "Open file FNAME and get grade." 
   (when (and (file-exists-p fname) (file-readable-p fname))
     (with-temp-buffer
       (insert-file-contents fname)
@@ -200,7 +147,6 @@ This assumes the assignment label is the filename you are in."
 
 (defun gb-set-filetag (tag value)
   "Set filetag TAG to VALUE."
-  (interactive "sTag: \nsValue: ")
   (save-excursion
     (goto-char (point-min))
     (if (re-search-forward (format "#\\+%s:" tag) (point-max) 'end)
@@ -222,7 +168,6 @@ This assumes the assignment label is the filename you are in."
 
 (defun gb-get-filetag (tag)
   "Return value for TAG in the org-file."
-  (interactive "sTag: ")
   ;; (setq kwds (org-element-map (org-element-parse-buffer 'element) 'keyword
   ;;	       (lambda (keyword)
   ;;		 (cons (org-element-property :key keyword)
@@ -238,6 +183,8 @@ This assumes the assignment label is the filename you are in."
       nil)))
 
 
+;; * grade-mode
+;;;###autoload
 (defun gb-save-and-close-buffer ()
   "Save current buffer and kill it."
   (interactive)
@@ -245,8 +192,11 @@ This assumes the assignment label is the filename you are in."
   (kill-buffer))
 
 
+;;;###autoload
 (defun gb-return ()
-  "Return current buffer. assumes you are on an assignment"
+  "Return current buffer.
+This should commit changes, and push back to the server.
+Assumes you are on an assignment"
   (interactive)
   (ta-return-to
    (gb-get-filetag "ASSIGNMENT")
@@ -260,14 +210,8 @@ This assumes the assignment label is the filename you are in."
       (last (butlast (split-string (buffer-file-name) "/")))) "-"))))
 
 
-;; here I rebind Alt-s as a prefix to these functions.
-;; it seems like a reasonable choice.
 (defvar grade-mode-map
-  (let ((gb-map (make-sparse-keymap)))
-    (define-key gb-map (kbd "M-s f") 'gb-feedback)
-    (define-key gb-map (kbd "M-s n") 'gb-insert-footnote)
-    (define-key gb-map (kbd "M-s c") 'gb-insert-comment)
-    (define-key gb-map (kbd "M-s t") 'gb-feedback-typo)
+  (let ((gb-map (make-sparse-keymap))) 
     (define-key gb-map (kbd "M-s g") 'gb-grade)
     (define-key gb-map (kbd "M-s r") 'gb-return)
     (define-key gb-map (kbd "M-s q") 'gb-save-and-close-buffer)
@@ -275,19 +219,12 @@ This assumes the assignment label is the filename you are in."
   "Keymap for function `grade-mode'.")
 
 
-
-
-
 (easy-menu-define grade-menu grade-mode-map "Grade menu"
-   '("grade"
-     ["Insert feedback" gb-feedback t]
-     ["Insert footnote" gb-insert-footnote t]
-     ["Insert comment" gb-insert-comment t]
-     ["Insert typo" gb-feedback-typo t]
-     ["Assign grade" gb-grade t]
-     ["Return assignment" gb-return t]
-     ["Save and close buffer" gb-save-and-close-buffer t]
- ))
+  '("grade"
+    ["Assign grade" gb-grade t]
+    ["Return assignment" gb-return t]
+    ["Save and close buffer" gb-save-and-close-buffer t]))
+
 
 (define-minor-mode grade-mode
   "Minor mode for grade

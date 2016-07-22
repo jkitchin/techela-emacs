@@ -1,0 +1,9 @@
+#+ASSIGNMENT: {{label}}
+#+POINTS: {{points}}
+#+CATEGORY: {{category}}
+#+RUBRIC: {{rubric}}
+#+DUEDATE: {{duedate}}
+
+ [[elisp:tq-turn-it-in]]
+* {{headline}}
+{{content}}
