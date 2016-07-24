@@ -1,0 +1,9 @@
+(su16-org
+ :title "Short course in org-mode"
+ :course-number "N/A"
+ :year 2016
+ :semester "Summer"
+ :instructor "John Kitchin"
+ :instructor-email "jkitchin@andrew.cmu.edu"
+ :course-repo "https://github.com/KitchinHUB/kitchingroup"
+ :techela-server "su16-org@techela.cheme.cmu.edu")
