@@ -5,6 +5,8 @@
  :semester "Fall"
  :instructor "John Kitchin"
  :instructor-email "jkitchin@andrew.cmu.edu"
+ :teaching-assistants '(("jboes@andrew.cmu.edu" . "Jacob Boes")
+			("eerdinc@andrew.cmu.edu". "Elif Erdinc"))
  :course-repo "https://github.com/jkitchin/f16-06625"
  :techela-server "f16-0625@techela.cheme.cmu.edu")
 
