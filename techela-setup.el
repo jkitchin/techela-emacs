@@ -136,13 +136,18 @@ ENV GIT_SSH=%s git $@
   ;; Finally setup and send the email
   ;; now create an email and send the key to the instructor
   (compose-mail)
+  (message-goto-from)
+  (message-beginning-of-line)
+  (kill-line)
+  (insert (gethash "user-mail-address" (tq-config-read-data)))
   (message-goto-to)
   (insert (techela-course-instructor-email tq-current-course))
   (message-goto-subject)
   (insert (format "[%s] %s pubkey" (techela-course-label tq-current-course)
 		  (gethash "user-mail-address" (tq-config-read-data))))
   (mml-attach-file (expand-file-name
-		    (concat (gethash "user-mail-address" (tq-config-read-data)) ".pub")
+		    (concat (gethash "user-mail-address"
+				     (tq-config-read-data)) ".pub")
 		    tq-root-directory))
   (message-goto-body)
   ;; let us get some user/computer information
@@ -151,7 +156,16 @@ ENV GIT_SSH=%s git $@
 	    (insert-file-contents "SYSTEM-INFO")
 	    (buffer-string)))
   (delete-file "SYSTEM-INFO")
-  (message-send-and-exit))
+  (let ((send-mail-function 'smtpmail-send-it)
+	(user-mail-address (gethash "user-mail-address" (tq-config-read-data)))
+	(smtpmail-smtp-server "smtp.andrew.cmu.edu")
+	(smtpmail-smtp-service 587)
+	(smtpmail-stream-type nil)
+	(smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil)))
+	(starttls-use-gnutls t)
+	(starttls-gnutls-program "gnutls-cli")
+	(mail-host-address "andrew.cmu.edu"))
+    (message-send-and-exit)))
 
 (defun tq-register (course)
   "Register for COURSE.
