@@ -68,6 +68,7 @@ It is inside `tq-root-directory'.")
   label title course-number
   instructor
   instructor-email
+  teaching-assistants
   semester
   year
 
