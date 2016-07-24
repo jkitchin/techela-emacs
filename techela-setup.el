@@ -89,7 +89,7 @@ scripts. Email key to instructor."
 			    (gethash "user-mail-address" (tq-config-read-data))
 			    tq-root-directory))))
 
-  ;; Now we add this to the config file. 
+  ;; Now we make the config file. 
   (with-temp-file (expand-file-name
 		   "techela-config"
 		   tq-root-directory)
@@ -188,6 +188,152 @@ back."
   (tq-setup-user)
   (tq-setup-ssh)
   (message "Please wait for further instructions."))
+
+
+
+(defun tq-setup-remote-course (course)
+  "Setup COURSE remotely.
+COURSE should be a struct from `tq-get-courses'. You should have
+password free communication with the techela server using ssh
+keys."
+  (interactive
+   (list
+    (prog2
+	(tq-check-internet)
+	(let ((courses (tq-get-courses)))
+	  (cdr (assoc (completing-read
+		       "Course name: " courses)
+		      courses))))))
+
+  (setq tq-current-course course
+	tq-root-directory (expand-file-name
+			   (symbol-name (techela-course-label course))
+			   tq-user-root)
+	tq-gitolite-admin-dir (expand-file-name
+			       "gitolite-admin"
+			       tq-root-directory))
+  
+  ;; Setup local directory
+  (unless (file-directory-p tq-user-root)
+    (make-directory tq-user-root t))
+
+  (unless (file-directory-p tq-root-directory)
+    (make-directory tq-root-directory))
+
+  ;; clone gitolite remotely if needed
+  (shell-command (format "ssh %s \"[ ! -d gitolite ] && git clone https://github.com/jkitchin/gitolite\""
+			 (techela-course-techela-server course)))
+  
+  (shell-command (format "ssh %s \"[ ! -d bin ] && mkdir bin\""
+			 (techela-course-techela-server course)))
+
+  (let ((user (car (split-string (techela-course-techela-server course) "@"))))
+    ;; this is a little hacky but $HOME is not set correctly for ssh on
+    ;; techela.cheme.cmu.edu for some reason.
+    (shell-command (format "ssh %s \"gitolite/install --to /home/%s/bin\""
+			   (techela-course-techela-server course)
+			   user)))
+
+  ;; generate a local admin ssh key if needed
+  (unless (file-exists-p (techela-course-instructor-email course))
+    (let ((default-directory tq-root-directory))
+      (shell-command (format "ssh-keygen -t rsa -f %s -N \"\""
+			     (techela-course-instructor-email course)))))
+
+  (shell-command (format "scp %s.pub %s:%s.pub"
+			 (expand-file-name
+			  (techela-course-instructor-email course) tq-root-directory)
+			 (techela-course-techela-server course)
+			 (techela-course-instructor-email course)))
+
+  (shell-command (format "ssh %s \"bin/gitolite setup -pk %s.pub\""
+			 (techela-course-techela-server course)
+			 (techela-course-instructor-email course)))
+
+  (with-temp-file (expand-file-name
+		   "techela-config"
+		   tq-root-directory)
+    (insert (mustache-render
+	     "Host {{host}}
+  User {{course}}
+  IdentityFile {{identify-file}}
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null\n"
+	     (ht ("host" (nth 1 (split-string
+				 (techela-course-techela-server tq-current-course)
+				 "@")))
+		 ("course" (symbol-name (techela-course-label  course)))
+		 ("identify-file" (expand-file-name
+				   (techela-course-instructor-email course)
+				   tq-root-directory))))))
+
+  (with-temp-file (expand-file-name
+		   "techela_ssh"
+		   tq-root-directory)
+    (insert
+     (format "#!/bin/bash
+# custom ssh for running git in batch mode for techela with the user-key
+exec ssh -F \"%s\" -o \"BatchMode yes\" \"$@\"
+# end" (expand-file-name "techela-config" tq-root-directory))))
+  
+  
+  (set-file-modes (expand-file-name
+		   "techela_ssh"
+		   tq-root-directory)
+		  #o755)
+
+  (with-temp-file (expand-file-name
+		   "techela_git"
+		   tq-root-directory)
+    (insert
+     (format "#!/bin/bash
+# custom git for techela with the user-key
+ENV GIT_SSH=%s git $@
+# end" (expand-file-name "techela_ssh" tq-root-directory))))
+
+  (set-file-modes (expand-file-name
+		   "techela_git"
+		   tq-root-directory)
+		  #o755)
+  
+  
+  (unless (file-directory-p tq-gitolite-admin-dir)
+    (with-current-directory tq-root-directory
+			    (mygit (format "git clone %s:gitolite-admin"
+					   (techela-course-techela-server course)))))
+
+  ;; Setup the new gitolite.conf file
+  (with-temp-file
+      (expand-file-name
+       "conf/gitolite.conf"
+       tq-gitolite-admin-dir)
+    (insert (mustache-render
+	     (with-temp-buffer
+	       (insert-file-contents
+		(expand-file-name
+		 "templates/gitolite.conf"
+		 (file-name-directory (locate-library "techela")))))
+
+	     (ht ("instructor-email" (techela-course-instructor-email course))
+		 ("teaching-assistants" (mapconcat (lambda (ta)
+						     (car ta))
+						   (techela-course-teaching-assistants course)
+						   " "))))))
+  (with-temp-file
+      (expand-file-name
+       "conf/students.conf"
+       tq-gitolite-admin-dir)
+    (insert "@students ="))
+  
+  (with-current-directory
+   tq-gitolite-admin-dir
+   (mygit "git commit conf/gitolite.conf -m \"Setup gitolite.conf for techela.\"")
+   (mygit "git commit conf/students.conf -m \"add students.conf for techela.\""))
+
+
+  (techela-admin course))
+
+
 
 
 (provide 'techela-setup)
