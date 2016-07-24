@@ -27,6 +27,7 @@ The server is run on an ordinary Linux server under a dedicated user. The userna
 ssh root@techela.cheme.cmu.edu useradd  su16-org
 #+END_SRC
 
+In this next command, you should change passwd to whatever password you want to use.
 #+BEGIN_SRC sh
 ssh root@techela.cheme.cmu.edu passwd su16-org
 #+END_SRC
@@ -36,8 +37,8 @@ ssh root@techela.cheme.cmu.edu passwd su16-org
 gitolite is the git server we use to create and manage git repositories for the course. First, login as the user for the course, and then run these commands.
 
 #+BEGIN_SRC sh
-git clone git://github.com/sitaramc/gitolite
 cd $HOME
+git clone https://github.com/jkitchin/gitolite
 mkdir bin
 gitolite/install --to $HOME/bin
 #+END_SRC
