@@ -206,10 +206,17 @@ back."
 
 
 (defun tq-setup-remote-course (course)
-  "Setup COURSE remotely.
+  "Setup COURSE on the remote server and locally.
 COURSE should be a struct from `tq-get-courses'. You should have
 password free communication with the techela server using ssh
-keys."
+keys.
+
+Locally:
+cat ~/.ssh/id_rsa.pub | ssh su16-org@techela.cheme.cmu.edu \"cat >> .ssh/authorized_keys\"
+
+on the server:
+chmod 600 .ssh/authorized_keys 
+"
   (interactive
    (list
     (prog2
@@ -227,7 +234,7 @@ keys."
 			       "gitolite-admin"
 			       tq-root-directory))
   
-  ;; Setup local directory
+  ;; Setup local directory structure
   (unless (file-directory-p tq-user-root)
     (make-directory tq-user-root t))
 
@@ -249,11 +256,13 @@ keys."
 			   user)))
 
   ;; generate a local admin ssh key if needed
-  (unless (file-exists-p (techela-course-instructor-email course))
+  (unless (file-exists-p (expand-file-name (techela-course-instructor-email course)
+					   tq-root-directory))
     (let ((default-directory tq-root-directory))
       (shell-command (format "ssh-keygen -t rsa -f %s -N \"\""
 			     (techela-course-instructor-email course)))))
 
+  ;; copy admin ssh key over to server, then setup gitolite
   (shell-command (format "scp %s.pub %s:%s.pub"
 			 (expand-file-name
 			  (techela-course-instructor-email course) tq-root-directory)
@@ -264,12 +273,20 @@ keys."
 			 (techela-course-techela-server course)
 			 (techela-course-instructor-email course)))
 
+  ;; Now generate ssh-config files to use the key
   (with-temp-file (expand-file-name
 		   "techela-config"
 		   tq-root-directory)
     (insert (mustache-render
 	     "Host {{host}}
   User {{course}}
+  IdentityFile {{identify-file}}
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+
+Host techela
+  User {{course}}
+  Hostname {{host}}
   IdentityFile {{identify-file}}
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null\n"
@@ -281,6 +298,7 @@ keys."
 				   (techela-course-instructor-email course)
 				   tq-root-directory))))))
 
+  ;; and the custom ssh and git 
   (with-temp-file (expand-file-name
 		   "techela_ssh"
 		   tq-root-directory)
@@ -326,13 +344,14 @@ ENV GIT_SSH=%s git $@
 	       (insert-file-contents
 		(expand-file-name
 		 "templates/gitolite.conf"
-		 (file-name-directory (locate-library "techela")))))
-
+		 (file-name-directory (locate-library "techela"))))
+	       (buffer-string))
 	     (ht ("instructor-email" (techela-course-instructor-email course))
 		 ("teaching-assistants" (mapconcat (lambda (ta)
 						     (car ta))
 						   (techela-course-teaching-assistants course)
-						   " "))))))
+						   " "))
+		 ("techela-server" (techela-course-techela-server course))))))
   (with-temp-file
       (expand-file-name
        "conf/students.conf"
@@ -342,9 +361,11 @@ ENV GIT_SSH=%s git $@
   (with-current-directory
    tq-gitolite-admin-dir
    (mygit "git commit conf/gitolite.conf -m \"Setup gitolite.conf for techela.\"")
-   (mygit "git commit conf/students.conf -m \"add students.conf for techela.\""))
+   (mygit "git add conf/students.conf")
+   (mygit "git commit conf/students.conf -m \"Add students.conf for techela.\"")
+   (mygit "git push origin master"))
 
-
+  (require 'techela-admin)
   (techela-admin course))
 
 
