@@ -1,0 +1,54 @@
+#+TITLE: Assignments directory
+
+You should create assignments in this directory. Each assignment will be its own directory and git-repo. The remote will be something like {{host}}:assignments/[a-z].*. The assignment label must start with a lower-case letter.
+
+The best way to do this is with the elisp:tq-create-assignment command. It will take care of cloning the assignment repo, setting the remote, and setting the points, category, rubric and due date.
+
+If you insist on doing it manually, you change into this directory and run the following commands to create an assignment called label:
+
+#+BEGIN_SRC sh
+{{tq-root-directory}}/techela_git clone {{host}}:assignments/label
+#+END_SRC
+
+Next, change into the label directory, and create a file called label.org. It should contain 
+
+#+BEGIN_EXAMPLE
+#+ASSIGNMENT: label
+#+POINTS: <replace: points>
+#+CATEGORY: <replace: category>
+#+RUBRIC: <replace: rubric>
+#+DUEDATE: <replace: duedate>
+
+ [[elisp:tq-turn-it-in]]
+* <replace: Some headline for the assignment>
+
+<replace: Assignment content>
+#+END_EXAMPLE
+
+When you are done, add the files, commit them, and push them.
+
+#+BEGIN_SRC emacs-lisp
+git add label.org
+git commit label.org -m "Finished editing assignment label."
+git push
+#+END_SRC
+
+Now you can assign it with:
+
+elisp:tq-assign-assignment
+
+This will prompt you for the label, and then create the student repos, and update the syllabus for you with a new assignment heading containing the assignment information and a link to the assignment in it.
+
+* Collecting assignments
+
+elisp:tq-collect-assignment will mark the assignment read-only.
+
+* Grading assignments
+
+elisp:tq-grade will collect and pull the assignments and open a grading file.
+
+* Downloading all the assignments
+If you are a TA, or setting up a new local machine, you may need to download all the assignments on the remote server. Since each assignment is its own repo, you just have to clone them all. Techela will do this for you with:
+
+elisp:tq-clone-server-assignments
+

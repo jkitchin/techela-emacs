@@ -1,0 +1,14 @@
+#+TITLE: Student work
+
+When you collect assignments, they will get pulled here. Each assignment will have a folder by the name of the label, and each student repo will be inside that folder. So if we have three students (student1, student2, student3) and two assignments (label, exam), we should see a structure like this:
+
+- student-work
+  - label
+    - student1@school.edu-label
+    - student2@school.edu-label
+    - student3@school.edu-label
+
+  - exam
+    - student1@school.edu-exam
+    - student2@school.edu-exam
+    - student3@school.edu-exam

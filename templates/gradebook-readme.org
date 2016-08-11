@@ -1,0 +1,13 @@
+#+TITLE: Gradebook directory
+
+This directory will contain org-files created for grading the assignments.
+
+elisp:tq-grade will prompt you for an assignment to grade, and open an org-file with links to each assignment.
+
+* Get a student grade
+
+elisp:tq-get-user-grades
+
+* Helm gradebook
+
+elisp:tq-helm-gradebook

@@ -1,0 +1,287 @@
+#+STARTUP: showall
+
+#+RESULTS: gitolite-admin
+
+#+RESULTS: course
+
+#+RESULTS: assignments
+
+* Menu of options
+
+  [[elisp:tq-status][Refresh]]
+
+** Admin Actions
+
+- [[elisp:(find-file tq-gitolite-admin-dir)][Open the admin directory]]
+
+- [[elisp:(find-file (expand-file-name "gradebook" tq-gitolite-admin-dir))][Open the gradebook directory]]
+
+** Course Actions
+
+- [[elisp:(find-file tq-course-directory)][Open the course directory]] [[elisp:(find-file (expand-file-name "syllabus.org" tq-course-directory))][Syllabus]]
+
+- [[elisp:(tq-roster)][Send email]]
+
+- [[elisp:(find-file (expand-file-name "roster.org" tq-gitolite-admin-dir))][Open the roster.org]] [[elisp:tq-update-git-roster][Update gitolite roster]] (run after you change roster.org)
+
+- [[elisp:tq-check-pub-keys][Check ssh keys]]
+
+** Assignment Actions
+
+- [[elisp:(find-file tq-course-assignments-dir)][Open the assignments directory]]
+- [[elisp:(find-file tq-course-student-work-dir)][Open student work directory]]
+- [[elisp:tq-pull-repos][Update student repos]] (pulls them all locally.)
+
+- [[elisp:tq-create-assignment][Create or edit an assignment]]
+- [[elisp:tq-create-solution][Create or edit solution]]
+- [[elisp:tq-release-solution][Release a solution (give students read-access)]]  [[elisp:tq-close-solution][Close a solution (remove read access)]]
+
+- [[elisp:tq-create-assignment-repos][Create class repos for an assignment]] (no student access until you assign it.)
+
+- [[elisp:tq-assign-assignment to class][Assign an assignment]] (give students RW access)
+- [[elisp:tq-collect][Collect an assignment from class]] (change students to R access. Does not pull.)
+- [[elisp:tq-pull-repos][Pull an assignment from class]] (get local copies of assignment. Does not change permissions.)
+
+
+- [[elisp:tq-grade][Grade an assignment for class]] (collect and pull repos. create grading list)
+- [[elisp:tq-return][Return an assignment to class]] (push local copies to server)
+
+- [[elisp:tq-show-assigned-assignments][Show list of assigned assignments]]
+
+- [[elisp:tq-helm-gradebook][Gradebook]]
+
+*** Individual Student Actions
+
+- [[elisp:tq-assign-to][Assign assignment to a student. give RW access]]
+- [[elisp:tq-collect-from][Collect assignment from a student. Make R access]]
+- [[elisp:tq-open-assignment][Open a student assignment. Pulls first.]]
+- [[elisp:tq-return-to][Return your changes in an assignment to a student]]
+
+- [[elisp:tq-email][Email a student]]
+
+
+* Appendix of code
+  :PROPERTIES:
+  :VISIBILITY: folded
+  :END:
+** gitolite-admin
+#+name: gitolite-admin
+#+BEGIN_SRC emacs-lisp :results org raw
+(with-current-directory
+ tq-gitolite-admin-dir
+ (let* ((git-status (shell-command-to-string "git status --porcelain"))
+	(clean (string= "" git-status))
+	(commits (tq-git-n-commits))
+	(nlocal (nth 0 commits))
+	(nremote (nth 1 commits))
+	(result ""))
+
+   (if clean
+       (progn
+	 (setf result (concat result (format "* gitolite-admin is clean %s\n"
+					     (format "(↑%s|↓%s)" nlocal nremote))))
+	 (when (> nlocal 0)
+	   (setf result (concat result "#+BEGIN_SRC emacs-lisp
+ (with-current-directory tq-gitolite-admin-dir
+   (mygit \"git push\")
+   (tq-status))
+,#+END_SRC
+
+")))
+
+	 (when (> nremote 0)
+	   (setf result (concat result "#+BEGIN_SRC emacs-lisp
+ (with-current-directory tq-gitolite-admin-dir
+   (mygit \"git pull\")
+   (tq-status))
+,#+END_SRC
+
+"))))
+
+     ;; Dirty folder
+     (setf result (concat
+		   result
+		   (format (concat "* gitolite-admin is "
+				   (propertize "dirty" 'font-lock-face '(:foreground "red"))
+				   " %s
+  :PROPERTIES:
+  :VISIBILITY: folded
+  :END:
+git status:
+%s") (format "(↑%s|↓%s)" nlocal nremote) git-status)) )
+
+     (when (> nremote 0)
+       (setf result (concat result "#+BEGIN_SRC emacs-lisp
+ (with-current-directory tq-gitolite-admin-dir
+   (mygit \"git pull\")
+   (tq-status))
+,#+END_SRC
+
+")))
+     (setf result (concat result "
+
+,#+BEGIN_SRC emacs-lisp
+ (with-current-directory tq-gitolite-admin-dir
+   (mygit \"git add *\")
+   (mygit \"git commit -m \\\"committing everything\\\"\")
+   (mygit \"git push\")
+   (tq-status))
+,#+END_SRC
+
+")))
+   result))
+#+END_SRC
+
+** course
+#+name: course
+#+BEGIN_SRC emacs-lisp :results org raw
+(with-current-directory
+ tq-course-directory
+ (let* ((git-status (shell-command-to-string "git status --porcelain"))
+	(clean (string= "" git-status))
+	(commits (tq-git-n-commits))
+	(nlocal (nth 0 commits))
+	(nremote (nth 1 commits))
+	(result ""))
+
+   (if clean
+       (progn
+	 (setq result (concat result (format "* Course is clean %s\n"
+					     (format "(↑%s|↓%s)" nlocal nremote))))
+	 (when (> nlocal 0)
+	   (setq result (concat result "#+BEGIN_SRC emacs-lisp
+ (with-current-directory tq-course-directory
+   (mygit \"git push\")
+   (tq-status))
+,#+END_SRC
+
+")))
+
+	 (when (> nremote 0)
+	   (setq result (concat result "#+BEGIN_SRC emacs-lisp
+ (with-current-directory tq-course-directory
+   (mygit \"git pull\")
+   (tq-status))
+,#+END_SRC
+
+"))))
+     ;; Dirty course
+     (setq result (concat result
+			  (format (concat "* Course is "
+					  (propertize "dirty" 'font-lock-face '(:foreground "red"))
+					  " %s
+  :PROPERTIES:
+  :VISIBILITY: folded
+  :END:
+git status:
+%s") (format "(↑%s|↓%s)" nlocal nremote) git-status)))
+
+     (setq result (concat result "
+
+,#+BEGIN_SRC emacs-lisp
+;; do this with caution!!!
+ (with-current-directory tq-course-directory
+   (mygit \"git add *\")
+   (mygit \"git commit -m \\\"committing everything\\\"\")
+   (mygit \"git push\")
+   (tq-status))
+,#+END_SRC
+
+")))
+   result))
+#+END_SRC
+
+** assignments
+#+name: assignments
+#+BEGIN_SRC emacs-lisp :results org raw
+(let ((results "* Assignment statuses
+  :PROPERTIES:
+  :VISIBILITY: children
+  :END:\n"))
+  (dolist (assignment (tq-get-possible-assignments)) 
+    ;; check assignment status
+    (let ((label assignment)
+	  (git-assignment-status)
+	  (git-solution-status)
+	  (header "")
+	  (body ""))
+
+      (setq header (format "** %s %s" label
+			   (if (-contains? (tq-get-assigned-assignments) label)
+			       (propertize " (assigned)" 'font-lock-face
+					   '(:foreground "forestgreen"))
+			     " (not assigned)")))
+
+      ;; get assignment status
+      (with-current-directory
+       (expand-file-name label tq-course-assignments-dir)
+       (setq git-assignment-status (shell-command-to-string "git status --porcelain"))
+
+       ;; link to the assignment.
+       (setq body (concat
+		   body
+		   (format "\n  assignment [[file:%s][%s]]\n"
+			   (expand-file-name
+			    (concat label ".org") (expand-file-name
+						   label tq-course-assignments-dir))
+			   (concat label ".org"))))
+
+       (if (string= "" git-assignment-status)
+	   (setq header (concat header " clean |"))
+	 (setq header (concat header " " (propertize "dirty" 'font-lock-face
+						     '(:foreground "red")) " |"))
+	 (setq body (concat
+		     body
+		     (shell-command-to-string "git status")
+		     (format "
+,#+BEGIN_SRC emacs-lisp
+   (with-current-directory (expand-file-name \"%s\" tq-course-assignments-dir)
+     (mygit \"git add *\")
+     (mygit \"git commit -m \\\"committing everything\\\"\")
+     (mygit \"git push\")
+     (tq-status))
+,#+END_SRC
+  " label)
+		     "\n"))))
+
+      ;; solution
+      (if (file-exists-p (expand-file-name label tq-course-solutions-dir))
+	  (with-current-directory
+	   (expand-file-name label tq-course-solutions-dir)
+	   (setq git-solution-status (shell-command-to-string "git status --porcelain"))
+	   (setq body (concat
+		       body
+		       (format "\n  solution [[file:%s][%s]]\n"
+			       (expand-file-name
+				(concat label ".org") (expand-file-name
+						       label tq-course-solutions-dir))
+			       (concat label ".org"))))
+
+	   (if (string= "" git-solution-status)
+	       (setq header (concat header " solution clean |"))
+	     (setq header (concat header " solution " (propertize "dirty"
+								  'font-lock-face
+								  '(:foreground "red")) " |"))
+
+	     (setq body (concat
+			 body
+			 (shell-command-to-string "git status")
+			 (format "
+,#+BEGIN_SRC emacs-lisp
+   (with-current-directory (expand-file-name \"%s\" tq-course-solutions-dir)
+     (mygit \"git add *\")
+     (mygit \"git commit -m \\\"committing everything\\\"\")
+     (mygit \"git push\")
+     (tq-status))
+,#+END_SRC
+  " label)))))
+	;; no solution found
+	(setq header (concat header " no solution"))
+	(setq body (concat
+		    body
+		    (format "  [[elisp:(tq-create-solution \"%s\")][Create/edit solution]]\n" label))))
+
+      ;; for each assignment
+      (setq results (concat results header "\n" body "\n"))))
+  results)
+#+END_SRC

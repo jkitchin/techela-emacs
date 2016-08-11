@@ -1,0 +1,18 @@
+#+TITLE: Solutions directory
+
+You should create assignment solutions in this directory. Each solution will be its own directory and git-repo. The remote will be something like {{host}}:solution/[a-z].*. The solution label must start with a lower-case letter and should be the solution to the assignment with the same label.
+
+You can create solutions with:
+elisp:tq-create-solution This will prompt you for a label from the known assignments, copying and cloning the solution in this directory.
+
+You can grant access to the solutions to the students with this command:
+elisp:tq-release-solution
+
+You can remove access to the solutions by the students with this command:
+elisp:tq-close-solution 
+
+In the syllabus, you can create a link to the "label" solution like this:
+
+#+BEGIN_EXAMPLE
+[[solution:label]]
+#+END_EXAMPLE
