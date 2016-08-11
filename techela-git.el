@@ -17,6 +17,23 @@ DIRECTORY is expanded"
      ,@body))
 
 
+(defun myssh (command)
+  "Use the techela_ssh script to run an ssh command.
+Returns (list status output)."
+  (let* ((techela-ssh (expand-file-name
+		       "techela_ssh"
+		       tq-root-directory))
+	 (cmd (mapconcat #'identity
+			 (list techela-ssh
+			       (techela-course-techela-server tq-current-course)
+			       command)
+			 " "))
+	 status output)
+    (when (get-buffer "*myssh*") (kill-buffer "*myssh*"))
+    (setq status (call-process-shell-command cmd nil "*myssh*"))
+    (setq output (with-current-buffer "*myssh*" (buffer-string)))
+    (list status output)))
+
 (defun mygit (git-command)
   "Run GIT-COMMAND in custom environment.
 
