@@ -183,7 +183,7 @@ category)"
 
 ;; * helm interface to gradebook
 (defun tq-gradebook-candidates ()
-  (loop for row in (tq-roster)
+  (loop for row in (tq-roster-data)
 	collect
 	(let* ((userid (car row))
 	       (plist (cdr row))
@@ -193,6 +193,8 @@ category)"
 
 (defun tq-student-overall-grade (userid)
   "Print overall grade for USERID in a buffer."
+  (interactive (list (completing-read "Userid: "
+				      (mapcar #'car (tq-roster-data)))))
   (switch-to-buffer (get-buffer-create "*gradebook*"))
   (erase-buffer)
   (insert
@@ -205,6 +207,8 @@ category)"
 
 (defun tq-student-grades (userid)
   "Generates a buffer with the grades for USERID."
+  (interactive (list (completing-read "Userid: "
+				      (mapcar #'car (tq-roster-data)))))
   (switch-to-buffer (get-buffer-create "*gradebook*"))
   (erase-buffer)
   (insert (format "#+TITLE: Grade report for %s\n"
@@ -229,38 +233,32 @@ Final grade: %1.3f %s\n"
 
 
 (defun tq-student-overall-grades ()
-  "Print overall grades in a buffer."
+  "Print overall grades in a buffer for each student in the roster."
   (interactive)
   (switch-to-buffer (get-buffer-create "*overall gradebook*"))
   (erase-buffer)
   (org-mode)
   (insert "| First name | Last Name | id | Grade | Letter grade |\n|-\n")
-  (dolist (userid (mapcar 'car (tq-roster)))
+  (dolist (userid (mapcar 'car (tq-roster-data)))
     (insert
      (destructuring-bind (lname fname id fgrade lgrade)
 	 (tq-get-user-overall-grade userid)
 
-       (format "| %s | %s | [[elisp:(tq-helm-student-grades \"%s\")][%s]] |  %1.3f | %s | \n"
+       (format "| %s | %s | [[elisp:(tq-student-grades \"%s\")][%s]] |  %1.3f | %s | \n"
 	       fname lname id id fgrade lgrade))))
   (previous-line 2)
   (org-table-align)
   (goto-char (point-max)))
 
 
-(defvar helm-source-gradebook-students '())
-
-(setq helm-source-gradebook-students
-      '((name . "Students")
-	(candidates . tq-gradebook-candidates)
-	(action . (("Individual grades" . tq-helm-student-grades)
-		   ("Overall grade" . tq-student-overall-grade)))))
-
-
 
 (defun tq-helm-gradebook ()
   "A helm interface to the gradebook."
   (interactive)
-  (helm :sources '(helm-source-gradebook-students)))
+  (helm :sources '(((name . "Students")
+		    (candidates . tq-gradebook-candidates)
+		    (action . (("Individual grades" . tq-student-grades)
+			       ("Overall grade" . tq-student-overall-grade)))))))
 
 (provide 'techela-gradebook)
 

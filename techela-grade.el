@@ -88,7 +88,7 @@ in."
 		  (file-name-nondirectory (buffer-name))))
 	  (cb (current-buffer))
 	  (tbuf (find-file-noselect (expand-file-name "syllabus.org" tq-course-dir))))
-      (unless (-contains? (ta-get-assigned-assignments) label)
+      (unless (-contains? (tq-get-assigned-assignments) label)
 	(error "%s is not an assignment" label))
 
       ;; get the rubric from the syllabus, to make sure it has not been
@@ -146,7 +146,8 @@ in."
 
 
 (defun gb-set-filetag (tag value)
-  "Set filetag TAG to VALUE."
+  "Set filetag TAG to VALUE.
+If VALUE is nil, remove the filetag."
   (save-excursion
     (goto-char (point-min))
     (if (re-search-forward (format "#\\+%s:" tag) (point-max) 'end)
@@ -155,15 +156,15 @@ in."
 	  (beginning-of-line)
 	  (kill-line)
 	  (when value
-	    (insert (format "#+%s: %s\n" tag value))))
+	    (insert (format "#+%s: %s" tag value))))
       ;; add new filetag
-      (if (eq (line-beginning-position) (point))
+      (if (looking-at "^$") 		;empty line
 	  ;; at beginning of line
 	  (when value
-	    (insert (format "#+%s: %s\n" tag value)))
+	    (insert (format "#+%s: %s" tag value)))
 	;; at end of some line, so add a new line
 	(when value
-	  (insert (format "\n#+%s: %s\n" tag value)))))))
+	  (insert (format "\n#+%s: %s" tag value)))))))
 
 
 (defun gb-get-filetag (tag)
@@ -198,7 +199,7 @@ in."
 This should commit changes, and push back to the server.
 Assumes you are on an assignment"
   (interactive)
-  (ta-return-to
+  (tq-return-to
    (gb-get-filetag "ASSIGNMENT")
    ;; hackery to get userid from the directory name. Basically
    ;; splitting the path to get the directory this buffer is in,

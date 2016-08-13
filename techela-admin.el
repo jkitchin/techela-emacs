@@ -3,9 +3,7 @@
 
 ;;; Commentary:
 ;; Techela is a Technology enhanced learning and assessment
-;; environment.  A techela course is hosted on a gitolite server.  The
-;; public course is available at
-;; coursename@techela.cheme.cmu.edu:course.
+;; environment.  A techela course is hosted on a gitolite server. 
 ;; See README.org and FAQ.org
 ;;
 
@@ -280,41 +278,47 @@ Interactively prompt for points, category, rubric and due date."
   (interactive (list
 		(completing-read "Label: " (tq-get-possible-assignments))))
 
-  (let ((assignment-dir (file-name-as-directory
-			 (expand-file-name
-			  label
-			  tq-course-assignments-dir))))
-    (unless (file-exists-p assignment-dir)
-      ;; no dir found. make one.
+  (let* ((assignment-dir (file-name-as-directory
+			  (expand-file-name
+			   label
+			   tq-course-assignments-dir)))
+	 (assignment-org (expand-file-name
+			  (concat label ".org")
+			  assignment-dir)))
+    (if (file-exists-p assignment-org)
+	(find-file assignment-org)
+      
+      ;; no file found. make one.
       (with-current-directory
        tq-course-assignments-dir
        (mygit (format "git clone %s:assignments/%s"
 		      (techela-course-techela-server tq-current-course)
-		      label))))
+		      label)))
 
-    ;; create the org file and make sure it has the right filetags.
-    (find-file (expand-file-name
-		(concat label ".org")
-		assignment-dir))
-    (gb-set-filetag "ASSIGNMENT" label)
-    (goto-char (point-min))
-    ;; we assume that unless points is defined, we need to insert all
-    ;; these things. We use completion where possible.
-    (unless (re-search-forward "#\\+POINTS:" nil 'end)
-      (insert (format "
-#+POINTS: %s
-#+CATEGORY: %s
-#+RUBRIC: %s
-#+DUEDATE: "
-		      (read-input "Points: ")
-		      (ido-completing-read "Category: " (ta-get-categories))
-		      (cdr (assoc (ido-completing-read "Rubric: " (mapcar 'car ta-rubrics)) ta-rubrics))))
+      ;; create the org file and make sure it has the right filetags.
+      (find-file (expand-file-name
+		  (concat label ".org")
+		  assignment-dir))
+      (gb-set-filetag "ASSIGNMENT" label)
+      
+      (unless (gb-get-filetag "POINTS")
+	(gb-set-filetag "POINTS" (read-input "Points: ")))
+
+      (unless (gb-get-filetag "CATEGORY")
+	(gb-set-filetag "CATEGORY" (completing-read "Category: " (tq-get-categories))))
+
+      (unless (gb-get-filetag "RUBRIC")
+	(gb-set-filetag "RUBRIC" (cdr (assoc (completing-read "Rubric: "
+							      (mapcar 'car tq-rubrics))
+					     tq-rubrics))))
+      (unless (gb-get-filetag "DUEDATE")
+	(gb-set-filetag "DUEDATE" (with-temp-buffer
+				    (org-time-stamp '())
+				    (buffer-string))))
       (goto-char (point-max))
-      ;; insert a due date.
-      (org-time-stamp '()))))
+      (insert "\n\n[[elisp:tq-turn-it-in][Turn it in]]\n"))))
 
 
-;;;###autoload
 (defun tq-create-assignment-repos (label)
   "Create repos for all students in the roster for an assignment LABEL.
 
@@ -330,13 +334,7 @@ We do not clone these yet, because they are empty.
 
 You must \"assign\" the assignment in another step, which
 involves giving the students read/write permissions. See
-`tq-assign-assignment'."
-  (interactive (list
-		(plist-get (cdr (assoc (completing-read
-					"Label: "
-					(tq-get-possible-assignments) nil t)
-				       (tq-get-possible-assignments))))))
-
+`tq-assign-assignment'." 
   (let* ((userids (tq-get-userids))
 	 (repos (mapcar (lambda (userid)
 			  (tq-get-repo-name label userid))
@@ -369,10 +367,9 @@ assignments section. This function updates the assignments
 section.
 "
   (interactive (list
-		(plist-get (cdr (assoc (completing-read
-					"Label: "
-					(tq-get-possible-assignments) nil t)
-				       (tq-get-possible-assignments))))))
+		(completing-read
+		 "Label: "
+		 (tq-get-possible-assignments) nil t)))
 
   ;; First we update the syllabus. Let us get the details from the assignment file
   (let (POINTS CATEGORY DUEDATE RUBRIC)
@@ -418,6 +415,7 @@ section.
 	      (goto-char (point-max))
 	      (insert "\n")
 	      (save-buffer)))))
+      
       ;; Finally, we need to commit the syllabus change, and push it.
       (with-current-directory
        tq-course-directory
@@ -429,8 +427,8 @@ section.
        (lambda (userid)
 	 (tq-create-edit-repo-conf
 	  (tq-get-repo-name label userid)
-	  nil              ;; R
-	  (list userid)))  ;; RW
+	  nil		  ;; R
+	  (list userid))) ;; RW
        (tq-get-userids))
 
       ;; push them all at once.
@@ -608,76 +606,69 @@ This will be in student-work/label/userid-label/userid-label.org."
 
 ;; ** Solutions
 
-;; TODO
-;; (defun tq-create-solution (label)
-;;   "Create or edit a solution LABEL.
-;; This creates the repo if needed, and copies the assignment to the
-;; solution directory. It does not give students access to the
-;; solution. It also does not commit or push your work for you. You
-;; need to run `tq-release-solution' to give students access to the
-;; solution."
-;;   (interactive (list
-;; 		(plist-get (cdr (assoc (completing-read
-;; 					"Label: "
-;; 					(tq-get-possible-assignments) nil t)
-;; 				       (tq-get-possible-assignments))))))
+(defun tq-create-solution (label)
+  "Create or edit a solution LABEL.
+This creates the repo if needed, and copies the assignment to the
+solution directory. It does not give students access to the
+solution. It also does not commit or push your work for you. You
+need to run `tq-release-solution' to give students access to the
+solution."
+  (interactive (list
+		(completing-read
+		 "Label: "
+		 (tq-get-possible-assignments) nil t)))
 
-;;   (let ((solution-dir (file-name-as-directory
-;; 		       (expand-file-name
-;; 			label
-;; 			tq-course-solutions-dir))))
-;;     (unless (file-exists-p solution-dir)
-;;       ;; no dir found. create the repo and directory. It is a wild
-;;       ;; repo on gitolite.
-;;       (with-current-directory
-;;        tq-course-solutions-dir
-;;        (mygit (format "git clone %s:solutions/%s"
-;; 		      (techela-course-techela-server tq-current-course)
-;; 		      label))
+  (let ((solution-dir (file-name-as-directory
+		       (expand-file-name
+			label
+			tq-course-solutions-dir))))
+    (unless (file-exists-p solution-dir)
+      ;; no dir found. create the repo and directory. It is a wild
+      ;; repo on gitolite.
+      (with-current-directory
+       tq-course-solutions-dir
+       (mygit (format "git clone %s:solutions/%s"
+		      (techela-course-techela-server tq-current-course)
+		      label))
 
-;;        ;; now, copy assignment org in as basis for solution unless it now exists.
-;;        (let ((assign-org (expand-file-name
-;; 			  (concat label ".org")
-;; 			  (expand-file-name
-;; 			   label
-;; 			   tq-course-assignments-dir)))
-;; 	     (soln-org (expand-file-name
-;; 			(concat label ".org")
-;; 			solution-dir)))
-;; 	 ;; we use the soln-org
-;; 	 (unless (file-exists-p soln-org)
-;; 	   ;; save solution .git, it will get clobbered by the
-;; 	   ;; assignment copy
-;; 	   (with-current-directory
-;; 	    solution-dir
-;; 	    (rename-file ".git" ".git-bak"))
-;; 	   (copy-directory (expand-file-name
-;; 			    label
-;; 			    tq-course-assignments-dir) ;; assignment dir
-;; 			   solution-dir
-;; 			   nil ; keep-time
-;; 			   t ; create parents
-;; 			   t)
-;; 	   ;; now restore the solution .git
-;; 	   (with-current-directory
-;; 	    solution-dir
-;; 	    (delete-directory ".git" t)
-;; 	    (rename-file ".git-bak" ".git")))))) ; copy contents only
-
-;;     ;; open the file
-;;     (find-file (expand-file-name
-;; 		(concat label ".org")
-;; 		solution-dir))))
+       ;; now, copy assignment org in as basis for solution unless it now exists.
+       (let ((assign-org (expand-file-name
+			  (concat label ".org")
+			  (expand-file-name
+			   label
+			   tq-course-assignments-dir)))
+	     (soln-org (expand-file-name
+			(concat label ".org")
+			solution-dir))) 
+	 ;; If we don't have the solution org-file, we copy everything over from
+	 ;; the assignment repo, except the .git repo.
+	 (unless (file-exists-p soln-org) 
+	   (with-current-directory
+	    solution-dir
+	    (loop for f in 
+		  (f-entries
+		   (expand-file-name
+		    label
+		    tq-course-assignments-dir)
+		   (lambda (f) (not (s-ends-with-p ".git" f))))
+		  do
+		  (if (file-directory-p f)
+		      (copy-directory f solution-dir nil t t)
+		    (copy-file f solution-dir t))))))))
+    
+    ;; open the file
+    (find-file (expand-file-name
+		(concat label ".org")
+		solution-dir))))
 
 
 (defun tq-release-solution (label)
   "Give students read access to the solution LABEL.
 See also `tq-close-solution'."
   (interactive (list
-		(plist-get (cdr (assoc (completing-read
-					"Label: "
-					(tq-get-possible-assignments) nil t)
-				       (tq-get-possible-assignments))))))
+		(completing-read
+		 "Label: "
+		 (tq-get-possible-assignments) nil t)))
   (let ((solution-repo-dir (file-name-as-directory
 			    (expand-file-name
 			     label
@@ -702,10 +693,9 @@ See also `tq-close-solution'."
 (defun tq-close-solution (label)
   "Close student access to the solution LABEL."
   (interactive (list
-		(plist-get (cdr (assoc (completing-read
-					"Label: "
-					(tq-get-possible-assignments) nil t)
-				       (tq-get-possible-assignments))))))
+		(completing-read
+		 "Label: "
+		 (tq-get-possible-assignments) nil t)))
   (shell-command
    (format "ssh %s perms solutions/%s - READERS @students"
 	   (techela-course-techela-server tq-current-course)
@@ -741,7 +731,8 @@ This is not fast since it pulls each repo."
 			      tq-gitolite-admin-dir))
 	(make-directory (expand-file-name
 			 "gradebook"
-			 tq-gitolite-admin-dir) t))
+			 tq-gitolite-admin-dir)
+			t))
       (find-file grading-file)
       (insert "#+TITLE: Grading
 #+AUTHOR: " (user-full-name) "
@@ -892,274 +883,287 @@ a link in the heading."
 
 ;; * course status command
 (defun tq-status ()
-  "Switch to *techela-admin* and show git status on the course."
+  "Show the course status dashboard."
   (interactive)
-  (switch-to-buffer (get-buffer-create "*techela-admin*"))
-  (read-only-mode -1)
+  (switch-to-buffer (get-buffer-create "*ta-status*"))
   (erase-buffer)
-  (insert "#+STARTUP: showall\n")
-
-  (with-current-directory
-   tq-gitolite-admin-dir
-   (let* ((git-status (shell-command-to-string "git status --porcelain"))
-	  (clean (string= "" git-status))
-	  (commits (tq-git-n-commits))
-	  (nlocal (nth 0 commits))
-	  (nremote (nth 1 commits)))
-
-     (if clean
-	 (progn
-	   (insert (format "* gitolite-admin is clean %s\n"
-			   (format "(↑%s|↓%s)" nlocal nremote)))
-	   (when (> nlocal 0)
-	     (insert "#+BEGIN_SRC emacs-lisp
- (with-current-directory tq-gitolite-admin-dir
-   (mygit \"git push\")
-   (tq-status))
-#+END_SRC
-
-"))
-
-	   (when (> nremote 0)
-	     (insert "#+BEGIN_SRC emacs-lisp
- (with-current-directory tq-gitolite-admin-dir
-   (mygit \"git pull\")
-   (tq-status))
-#+END_SRC
-
-")))
-
-       ;; Dirty folder
-       (insert (format (concat "* gitolite-admin is "
-			       (propertize "dirty" 'font-lock-face '(:foreground "red"))
-			       " %s
-  :PROPERTIES:
-  :VISIBILITY: folded
-  :END:
-git status:
-%s") (format "(↑%s|↓%s)" nlocal nremote) git-status))
-
-       (when (> nremote 0)
-	 (insert "#+BEGIN_SRC emacs-lisp
- (with-current-directory tq-gitolite-admin-dir
-   (mygit \"git pull\")
-   (tq-status))
-#+END_SRC
-
-"))
-       (insert "
-
-#+BEGIN_SRC emacs-lisp
- (with-current-directory tq-gitolite-admin-dir
-   (mygit \"git add *\")
-   (mygit \"git commit -m \\\"committing everything\\\"\")
-   (mygit \"git push\")
-   (tq-status))
-#+END_SRC
-
-"))))
-
-  ;; Now check the course directory status
-  (with-current-directory
-   tq-course-directory
-   (let* ((git-status (shell-command-to-string "git status --porcelain"))
-	  (clean (string= "" git-status))
-	  (commits (tq-git-n-commits))
-	  (nlocal (nth 0 commits))
-	  (nremote (nth 1 commits)))
-
-     (if clean
-	 (progn
-	   (insert (format "* Course is clean %s\n"
-			   (format "(↑%s|↓%s)" nlocal nremote)))
-	   (when (> nlocal 0)
-	     (insert "#+BEGIN_SRC emacs-lisp
- (with-current-directory tq-course-directory
-   (mygit \"git push\")
-   (tq-status))
-#+END_SRC
-
-"))
-
-	   (when (> nremote 0)
-	     (insert "#+BEGIN_SRC emacs-lisp
- (with-current-directory tq-course-directory
-   (mygit \"git pull\")
-   (tq-status))
-#+END_SRC
-
-")))
-       ;; Dirty course
-       (insert (format (concat "* Course is "
-			       (propertize "dirty" 'font-lock-face '(:foreground "red"))
-			       " %s
-
-  :PROPERTIES:
-  :VISIBILITY: folded
-  :END:
-git status:
-%s") (format "(↑%s|↓%s)" nlocal nremote) git-status))
-
-       (insert "
-
-#+BEGIN_SRC emacs-lisp
-;; do this with caution!!!
- (with-current-directory tq-course-directory
-   (mygit \"git add *\")
-   (mygit \"git commit -m \\\"committing everything\\\"\")
-   (mygit \"git push\")
-   (tq-status))
-#+END_SRC
-
-"))))
-
-;;; now we get each assignment and solution
-  (insert "* Assignment statuses
-  :PROPERTIES:
-  :VISIBILITY: folded
-  :END:
-
-")
-  (dolist (assignment (tq-get-possible-assignments)) 
-    ;; check assignment status
-    (let ((label (plist-get (cdr assignment) :label))
-	  (git-assignment-status)
-  	  (git-solution-status)
-  	  (header "")
-  	  (body ""))
-
-      (setq header (format "** %s %s" label
-  			   (if (-contains? (tq-get-assigned-assignments) label)
-  			       (propertize " (assigned)" 'font-lock-face
-					   '(:foreground "forestgreen"))
-  			     " (not assigned)")))
-
-      ;; get assignment status
-      (with-current-directory
-       (expand-file-name label tq-course-assignments-dir)
-       (setq git-assignment-status (shell-command-to-string "git status --porcelain"))
-
-       ;; link to the assignment.
-       (setq body (concat
-  		   body
-  		   (format "\n  assignment [[file:%s][%s]]\n"
-  			   (expand-file-name
-  			    (concat label ".org") (expand-file-name
-  						   label tq-course-assignments-dir))
-  			   (concat label ".org"))))
-
-       (if (string= "" git-assignment-status)
-  	   (setq header (concat header " clean |"))
-  	 (setq header (concat header " " (propertize "dirty" 'font-lock-face
-						     '(:foreground "red")) " |"))
-  	 (setq body (concat
-  		     body
-  		     (shell-command-to-string "git status")
-  		     (format "
-#+BEGIN_SRC emacs-lisp
-   (with-current-directory (expand-file-name \"%s\" tq-course-assignments-dir)
-     (mygit \"git add *\")
-     (mygit \"git commit -m \\\"committing everything\\\"\")
-     (mygit \"git push\")
-     (tq-status))
-#+END_SRC
-  " label)
-  		     "\n"))))
-
-      ;; solution
-      (if (file-exists-p (expand-file-name label tq-course-solutions-dir))
-  	  (with-current-directory
-  	   (expand-file-name label tq-course-solutions-dir)
-  	   (setq git-solution-status (shell-command-to-string "git status --porcelain"))
-  	   (setq body (concat
-  		       body
-  		       (format "\n  solution [[file:%s][%s]]\n"
-  			       (expand-file-name
-  				(concat label ".org") (expand-file-name
-  						       label tq-course-solutions-dir))
-  			       (concat label ".org"))))
-
-  	   (if (string= "" git-solution-status)
-  	       (setq header (concat header " solution clean |"))
-  	     (setq header (concat header " solution " (propertize "dirty"
-								  'font-lock-face
-								  '(:foreground "red")) " |"))
-
-  	     (setq body (concat
-  			 body
-  			 (shell-command-to-string "git status")
-  			 (format "
-  #+BEGIN_SRC emacs-lisp
-   (with-current-directory (expand-file-name \"%s\" tq-course-solutions-dir)
-     (mygit \"git add *\")
-     (mygit \"git commit -m \\\"committing everything\\\"\")
-     (mygit \"git push\")
-     (tq-status))
-  #+END_SRC
-  " label)))))
-  	;; no solution found
-  	(setq header (concat header " no solution"))
-  	(setq body (concat
-  		    body
-  		    (format "  [[elisp:(tq-create-solution \"%s\")][Create/edit solution]]\n" label))))
-
-      ;; for each assignment
-      (insert header "\n" body "\n")))
-  ;; now menu options
-  (insert "
-* Menu of options
-
-** Admin Actions
-
-- [[elisp:(find-file tq-gitolite-admin-dir)][Open the admin directory]]
-
-- [[elisp:(find-file (expand-file-name \"gradebook\" tq-gitolite-admin-dir))][Open the gradebook directory]]
-
-** Course Actions
-
-- [[elisp:(find-file tq-course-directory)][Open the course directory]] [[elisp:(find-file (expand-file-name \"syllabus.org\" tq-course-directory))][Syllabus]]
-
-- [[elisp:(tq-roster)][Send email]]
-
-- [[elisp:(find-file (expand-file-name \"roster.org\" tq-gitolite-admin-dir))][Open the roster.org]]
-
-- [[elisp:tq-check-pub-keys][Check ssh keys]]
-
-** Assignment Actions
-
-- [[elisp:(find-file tq-course-assignments-dir)][Open the assignments directory]]
-- [[elisp:(find-file tq-course-student-work-dir)][Open student work directory]]
-- [[elisp:tq-pull-repos][Update student repos]] (pulls them all locally.)
-
-- [[elisp:tq-create-assignment][Create or edit an assignment]]
-- [[elisp:tq-create-solution][Create or edit solution]]
-- [[elisp:tq-release-solution][Release a solution (give students read-access)]]  [[elisp:tq-close-solution][Close a solution (remove read access)]]
-
-- [[elisp:tq-create-assignment-repos][Create class repos for an assignment]] (no student access until you assign it.)
-
-- [[elisp:tq-assign-assignment to class][Assign an assignment]] (give students RW access)
-- [[elisp:tq-collect][Collect an assignment from class]] (change students to R access. Does not pull.)
-- [[elisp:tq-pull-repos][Pull an assignment from class]] (get local copies of assignment. Does not change permissions.)
-
-
-- [[elisp:tq-grade][Grade an assignment for class]] (collect and pull repos. create grading list)
-- [[elisp:tq-return][Return an assignment to class]] (push local copies to server)
-
-- [[elisp:tq-show-assigned-assignments][Show list of assigned assignments]]
-
-- [[elisp:tq-helm-gradebook][Gradebook]]
-
-*** Individual Student Actions
-
-- [[elisp:tq-assign-to][Assign assignment to a student. give RW access]]
-- [[elisp:tq-collect-from][Collect assignment from a student. Make R access]]
-- [[elisp:tq-open-assignment][Open a student assignment. Pulls first.]]
-- [[elisp:tq-return-to][Return your changes in an assignment to a student]]
-
-- [[elisp:tq-email][Email a student]]")
-  (goto-char (point-min))
+  (insert-file-contents (expand-file-name "templates/admin-status.org"
+					  (file-name-directory
+					   (locate-library "techela"))))
   (org-mode)
-  (read-only-mode +1))
+  (org-babel-execute-buffer)
+  (org-cycle '(16)))
+
+
+;; (defun tq-status ()
+;;   "Switch to *techela-admin* and show git status on the course."
+;;   (interactive)
+;;   (switch-to-buffer (get-buffer-create "*techela-admin*"))
+;;   (read-only-mode -1)
+;;   (erase-buffer) 
+;;   (insert "#+STARTUP: showall\n")
+;;   (insert (format "#+TITLE: %s\n" (techela-course-title tq-current-course)))
+;;   (with-current-directory
+;;    tq-gitolite-admin-dir
+;;    (let* ((git-status (shell-command-to-string "git status --porcelain"))
+;; 	  (clean (string= "" git-status))
+;; 	  (commits (tq-git-n-commits))
+;; 	  (nlocal (nth 0 commits))
+;; 	  (nremote (nth 1 commits)))
+
+;;      (if clean
+;; 	 (progn
+;; 	   (insert (format "* gitolite-admin is clean %s\n"
+;; 			   (format "(↑%s|↓%s)" nlocal nremote)))
+;; 	   (when (> nlocal 0)
+;; 	     (insert "#+BEGIN_SRC emacs-lisp
+;;  (with-current-directory tq-gitolite-admin-dir
+;;    (mygit \"git push\")
+;;    (tq-status))
+;; #+END_SRC
+
+;; "))
+
+;; 	   (when (> nremote 0)
+;; 	     (insert "#+BEGIN_SRC emacs-lisp
+;;  (with-current-directory tq-gitolite-admin-dir
+;;    (mygit \"git pull\")
+;;    (tq-status))
+;; #+END_SRC
+
+;; ")))
+
+;;        ;; Dirty folder
+;;        (insert (format (concat "* gitolite-admin is "
+;; 			       (propertize "dirty" 'font-lock-face '(:foreground "red"))
+;; 			       " %s
+;;   :PROPERTIES:
+;;   :VISIBILITY: folded
+;;   :END:
+;; git status:
+;; %s") (format "(↑%s|↓%s)" nlocal nremote) git-status))
+
+;;        (when (> nremote 0)
+;; 	 (insert "#+BEGIN_SRC emacs-lisp
+;;  (with-current-directory tq-gitolite-admin-dir
+;;    (mygit \"git pull\")
+;;    (tq-status))
+;; #+END_SRC
+
+;; "))
+;;        (insert "
+
+;; #+BEGIN_SRC emacs-lisp
+;;  (with-current-directory tq-gitolite-admin-dir
+;;    (mygit \"git add *\")
+;;    (mygit \"git commit -m \\\"committing everything\\\"\")
+;;    (mygit \"git push\")
+;;    (tq-status))
+;; #+END_SRC
+
+;; "))))
+
+;;   ;; Now check the course directory status
+;;   (with-current-directory
+;;    tq-course-directory
+;;    (let* ((git-status (shell-command-to-string "git status --porcelain"))
+;; 	  (clean (string= "" git-status))
+;; 	  (commits (tq-git-n-commits))
+;; 	  (nlocal (nth 0 commits))
+;; 	  (nremote (nth 1 commits)))
+
+;;      (if clean
+;; 	 (progn
+;; 	   (insert (format "* Course is clean %s\n"
+;; 			   (format "(↑%s|↓%s)" nlocal nremote)))
+;; 	   (when (> nlocal 0)
+;; 	     (insert "#+BEGIN_SRC emacs-lisp
+;;  (with-current-directory tq-course-directory
+;;    (mygit \"git push\")
+;;    (tq-status))
+;; #+END_SRC
+
+;; "))
+
+;; 	   (when (> nremote 0)
+;; 	     (insert "#+BEGIN_SRC emacs-lisp
+;;  (with-current-directory tq-course-directory
+;;    (mygit \"git pull\")
+;;    (tq-status))
+;; #+END_SRC
+
+;; ")))
+;;        ;; Dirty course
+;;        (insert (format (concat "* Course is "
+;; 			       (propertize "dirty" 'font-lock-face '(:foreground "red"))
+;; 			       " %s
+
+;;   :PROPERTIES:
+;;   :VISIBILITY: folded
+;;   :END:
+;; git status:
+;; %s") (format "(↑%s|↓%s)" nlocal nremote) git-status))
+
+;;        (insert "
+
+;; #+BEGIN_SRC emacs-lisp
+;; ;; do this with caution!!!
+;;  (with-current-directory tq-course-directory
+;;    (mygit \"git add *\")
+;;    (mygit \"git commit -m \\\"committing everything\\\"\")
+;;    (mygit \"git push\")
+;;    (tq-status))
+;; #+END_SRC
+
+;; "))))
+
+;; ;;; now we get each assignment and solution
+;;   (insert "* Assignment statuses
+;;   :PROPERTIES:
+;;   :VISIBILITY: folded
+;;   :END:
+
+;; ")
+;;   (dolist (assignment (tq-get-possible-assignments)) 
+;;     ;; check assignment status
+;;     (let ((label assignment)
+;; 	  (git-assignment-status)
+;;   	  (git-solution-status)
+;;   	  (header "")
+;;   	  (body ""))
+
+;;       (setq header (format "** %s %s" label
+;;   			   (if (-contains? (tq-get-assigned-assignments) label)
+;;   			       (propertize " (assigned)" 'font-lock-face
+;; 					   '(:foreground "forestgreen"))
+;;   			     " (not assigned)")))
+
+;;       ;; get assignment status
+;;       (with-current-directory
+;;        (expand-file-name label tq-course-assignments-dir)
+;;        (setq git-assignment-status (shell-command-to-string "git status --porcelain"))
+
+;;        ;; link to the assignment.
+;;        (setq body (concat
+;;   		   body
+;;   		   (format "\n  assignment [[file:%s][%s]]\n"
+;;   			   (expand-file-name
+;;   			    (concat label ".org") (expand-file-name
+;;   						   label tq-course-assignments-dir))
+;;   			   (concat label ".org"))))
+
+;;        (if (string= "" git-assignment-status)
+;;   	   (setq header (concat header " clean |"))
+;;   	 (setq header (concat header " " (propertize "dirty" 'font-lock-face
+;; 						     '(:foreground "red")) " |"))
+;;   	 (setq body (concat
+;;   		     body
+;;   		     (shell-command-to-string "git status")
+;;   		     (format "
+;; #+BEGIN_SRC emacs-lisp
+;;    (with-current-directory (expand-file-name \"%s\" tq-course-assignments-dir)
+;;      (mygit \"git add *\")
+;;      (mygit \"git commit -m \\\"committing everything\\\"\")
+;;      (mygit \"git push\")
+;;      (tq-status))
+;; #+END_SRC
+;;   " label)
+;;   		     "\n"))))
+
+;;       ;; solution
+;;       (if (file-exists-p (expand-file-name label tq-course-solutions-dir))
+;;   	  (with-current-directory
+;;   	   (expand-file-name label tq-course-solutions-dir)
+;;   	   (setq git-solution-status (shell-command-to-string "git status --porcelain"))
+;;   	   (setq body (concat
+;;   		       body
+;;   		       (format "\n  solution [[file:%s][%s]]\n"
+;;   			       (expand-file-name
+;;   				(concat label ".org") (expand-file-name
+;;   						       label tq-course-solutions-dir))
+;;   			       (concat label ".org"))))
+
+;;   	   (if (string= "" git-solution-status)
+;;   	       (setq header (concat header " solution clean |"))
+;;   	     (setq header (concat header " solution " (propertize "dirty"
+;; 								  'font-lock-face
+;; 								  '(:foreground "red")) " |"))
+
+;;   	     (setq body (concat
+;;   			 body
+;;   			 (shell-command-to-string "git status")
+;;   			 (format "
+;;   #+BEGIN_SRC emacs-lisp
+;;    (with-current-directory (expand-file-name \"%s\" tq-course-solutions-dir)
+;;      (mygit \"git add *\")
+;;      (mygit \"git commit -m \\\"committing everything\\\"\")
+;;      (mygit \"git push\")
+;;      (tq-status))
+;;   #+END_SRC
+;;   " label)))))
+;;   	;; no solution found
+;;   	(setq header (concat header " no solution"))
+;;   	(setq body (concat
+;;   		    body
+;;   		    (format "  [[elisp:(tq-create-solution \"%s\")][Create/edit solution]]\n" label))))
+
+;;       ;; for each assignment
+;;       (insert header "\n" body "\n")))
+;;   ;; now menu options
+;;   (insert "
+;; * Menu of options
+
+;;   [[elisp:tq-status][Refresh]]
+
+;; ** Admin Actions
+
+;; - [[elisp:(find-file tq-gitolite-admin-dir)][Open the admin directory]]
+
+;; - [[elisp:(find-file (expand-file-name \"gradebook\" tq-gitolite-admin-dir))][Open the gradebook directory]]
+
+;; ** Course Actions
+
+;; - [[elisp:(find-file tq-course-directory)][Open the course directory]] [[elisp:(find-file (expand-file-name \"syllabus.org\" tq-course-directory))][Syllabus]]
+
+;; - [[elisp:(tq-roster)][Send email]]
+
+;; - [[elisp:(find-file (expand-file-name \"roster.org\" tq-gitolite-admin-dir))][Open the roster.org]] [[elisp:tq-update-git-roster][Update gitolite roster]] (run after you change roster.org)
+
+;; - [[elisp:tq-check-pub-keys][Check ssh keys]]
+
+;; ** Assignment Actions
+
+;; - [[elisp:(find-file tq-course-assignments-dir)][Open the assignments directory]]
+;; - [[elisp:(find-file tq-course-student-work-dir)][Open student work directory]]
+;; - [[elisp:tq-pull-repos][Update student repos]] (pulls them all locally.)
+
+;; - [[elisp:tq-create-assignment][Create or edit an assignment]]
+;; - [[elisp:tq-create-solution][Create or edit solution]]
+;; - [[elisp:tq-release-solution][Release a solution (give students read-access)]]  [[elisp:tq-close-solution][Close a solution (remove read access)]]
+
+;; - [[elisp:tq-create-assignment-repos][Create class repos for an assignment]] (no student access until you assign it.)
+
+;; - [[elisp:tq-assign-assignment to class][Assign an assignment]] (give students RW access)
+;; - [[elisp:tq-collect][Collect an assignment from class]] (change students to R access. Does not pull.)
+;; - [[elisp:tq-pull-repos][Pull an assignment from class]] (get local copies of assignment. Does not change permissions.)
+
+
+;; - [[elisp:tq-grade][Grade an assignment for class]] (collect and pull repos. create grading list)
+;; - [[elisp:tq-return][Return an assignment to class]] (push local copies to server)
+
+;; - [[elisp:tq-helm-gradebook][Gradebook]]
+
+;; *** Individual Student Actions
+
+;; - [[elisp:tq-assign-to][Assign assignment to a student. give RW access]]
+;; - [[elisp:tq-collect-from][Collect assignment from a student. Make R access]]
+;; - [[elisp:tq-open-assignment][Open a student assignment. Pulls first.]]
+;; - [[elisp:tq-return-to][Return your changes in an assignment to a student]]
+
+;; - [[elisp:tq-email][Email a student]]")
+;;   (goto-char (point-min))
+;;   (org-mode)
+;;   (read-only-mode +1))
 
 ;; * Repo status commands
 
@@ -1243,53 +1247,53 @@ git status:
   (org-mode))
 
 
-(defun tq-pull-assignment-dirs ()
-  "Pull all remotely known assignments to local machine.
-This is useful on a new machine. I do not recall why I don't loop through students and assigned labels though."
-  (interactive)
-  (dolist (assignment  (loop for line in
-			     (split-string
-			      (shell-command-to-string
-			       (format "%s %s info"
-				       (expand-file-name
-					"techela_ssh"
-					tq-root-directory)
-				       (techela-course-techela-server tq-current-course)))
-			      "\n")
-			     if (string-match "\\(assignments/[^[]]*.*\\)" line)
-			     collect (match-string 1 line)))
-    (unless (file-exists-p
-	     (expand-file-name assignment tq-course-assignments-dir))
-      (with-current-directory
-       tq-course-assignments-dir
-       (mygit (format "git clone %s:%s"
-		      (techela-course-techela-server tq-current-course)
-		      assignment))))))
+;; (defun tq-pull-assignment-dirs ()
+;;   "Pull all remotely known assignments to local machine.
+;; This is useful on a new machine."
+;;   (interactive)
+;;   (dolist (assignment  (loop for line in
+;; 			     (split-string
+;; 			      (shell-command-to-string
+;; 			       (format "%s %s info"
+;; 				       (expand-file-name
+;; 					"techela_ssh"
+;; 					tq-root-directory)
+;; 				       (techela-course-techela-server tq-current-course)))
+;; 			      "\n")
+;; 			     if (string-match "\\(assignments/[^[]]*.*\\)" line)
+;; 			     collect (match-string 1 line)))
+;;     (unless (file-exists-p
+;; 	     (expand-file-name assignment tq-course-assignments-dir))
+;;       (with-current-directory
+;;        tq-course-assignments-dir
+;;        (mygit (format "git clone %s:%s"
+;; 		      (techela-course-techela-server tq-current-course)
+;; 		      assignment))))))
 
 
-(defun tq-pull-solutions-dirs ()
-  "Pull solutions to local machine."
-  (interactive)
-  (dolist (assignment  (loop for line in
-			     (split-string
-			      (shell-command-to-string
-			       (format "%s %s info"
-				       (expand-file-name
-					"techela_ssh"
-					tq-root-directory)
-				       (techela-course-techela-server tq-current-course)))
-			      "\n")
-			     if (string-match "\\(solutions/[^[]]*.*\\)" line)
-			     collect (match-string 1 line)))
-    (unless (file-exists-p
-	     (expand-file-name
-	      assignment
-	      tq-course-solutions-dir))
-      (with-current-directory
-       tq-course-solutions-dir
-       (mygit (format "git clone %s:%s"
-		      (techela-course-techela-server tq-current-course)
-		      assignment))))))
+;; (defun tq-pull-solutions-dirs ()
+;;   "Pull solutions to local machine."
+;;   (interactive)
+;;   (dolist (assignment  (loop for line in
+;; 			     (split-string
+;; 			      (shell-command-to-string
+;; 			       (format "%s %s info"
+;; 				       (expand-file-name
+;; 					"techela_ssh"
+;; 					tq-root-directory)
+;; 				       (techela-course-techela-server tq-current-course)))
+;; 			      "\n")
+;; 			     if (string-match "\\(solutions/[^[]]*.*\\)" line)
+;; 			     collect (match-string 1 line)))
+;;     (unless (file-exists-p
+;; 	     (expand-file-name
+;; 	      assignment
+;; 	      tq-course-solutions-dir))
+;;       (with-current-directory
+;;        tq-course-solutions-dir
+;;        (mygit (format "git clone %s:%s"
+;; 		      (techela-course-techela-server tq-current-course)
+;; 		      assignment))))))
 
 
 (defun tq-add-pub-key (pubfile)
@@ -1313,6 +1317,65 @@ it."
 					   fullname name))
 			    (mygit "git push")
 			    (message "%s pushed." name))))
+
+;; * Utility functions
+
+(defun tq-server-repos ()
+  "Retrieve a list of repos on the server.
+Each element is (permission-string repo-name)."
+  (mapcar (lambda (line)
+	    (split-string line "\t" t))
+	  (cddr (split-string (nth 1 (myssh "info"))
+			      "\n" t))))
+
+
+(defun tq-server-info ()
+  "Show buffer with information about the techela server."
+  (interactive)
+  (switch-to-buffer (get-buffer-create "tq-info"))
+  (erase-buffer)
+  (insert (s-join "\n" (mapcar (lambda (s) (s-join " " s)) (tq-server-repos)))))
+
+
+(defun tq-clone-server-assignments ()
+  "Locally clone or update all the assignments from the server.
+This will get all assignments that are on the server, including
+ones not yet assigned."
+  (let* ((all-repos (tq-server-repos))
+	 (assignment-repos (-filter (lambda (repo-cell)
+				      (string-match "assignments/[a-z].*" (nth 1 repo-cell)))
+				    all-repos))
+	 (default-directory tq-root-directory))
+    ;; (permissions-string repo-name)
+    ;; repo-names are assignments/label
+    (loop for (permission-string repo-name) in assignment-repos
+	  do
+	  (if (not (file-directory-p repo-name))
+	      ;; get it
+	      (with-current-directory tq-course-assignments-dir
+				      (mygit "git clone %s" repo-name))
+	    (with-current-directory (expand-file-name repo-name
+						      tq-root-directory)
+				    (mygit "git pull origin master"))))))
+
+(defun tq-clone-server-solutions ()
+  "Locally clone or update all the assignments from the server."
+  (let* ((all-repos (tq-server-repos))
+	 (solution-repos (-filter (lambda (repo-cell)
+				    (string-match "solutions/[a-z].*" (nth 1 repo-cell)))
+				  all-repos))
+	 (default-directory tq-root-directory))
+    ;; (permissions-string repo-name)
+    ;; repo-names are assignments/label
+    (loop for (permission-string repo-name) in solution-repos
+	  do
+	  (if (not (file-directory-p repo-name))
+	      ;; get it
+	      (with-current-directory tq-course-solutions-dir
+				      (mygit "git clone %s" repo-name))
+	    (with-current-directory (expand-file-name repo-name
+						      tq-root-directory)
+				    (mygit "git pull origin master"))))))
 
 
 (provide 'techela-admin)

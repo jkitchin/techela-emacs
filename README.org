@@ -21,7 +21,7 @@ The initial setup of a techela course on the techela server is described here. F
 #+END_SRC
 
 ** Create a new user on the server
-The server is run on an ordinary Linux server under a dedicated user. The username should match the username in the :techela-server property of the course recipe. Here are two commands to create a new user and password for the user.
+The server is run on an ordinary Linux server under a dedicated user. The username should match the username in the :techela-server property of the course recipe. Here are two commands to create a new user and password for the user. If you run your own server you will do this, otherwise you will need the techela server administrator to make your account.
 
 #+BEGIN_SRC sh
 ssh root@techela.cheme.cmu.edu useradd  su16-org
@@ -31,132 +31,38 @@ In this next command, you should change passwd to whatever password you want to 
 #+BEGIN_SRC sh
 ssh root@techela.cheme.cmu.edu passwd su16-org
 #+END_SRC
+
+
+** Setup local ssh key to techela server
+First, we make sure we have a .ssh directory and authorized_keys file with the right permissions on the remote server.
+
+#+BEGIN_SRC sh
+ssh su16-org@techela.cheme.cmu.edu "mkdir -p .ssh && chmod 700 .ssh && touch .ssh/authorized_keys && chmod 600 .ssh/authorized_keys"
+#+END_SRC
+
+Next, you should setup a local ssh-key so you can connect to this account without a password.
+
+If you don't have a ~/.ssh/id_rsa key setup run this to setup an ssh key with no password:
+
+#+BEGIN_SRC sh
+[ ! -e ~/.ssh/id_rsa ] ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""
+#+END_SRC
+
+Now copy it to the techela account like this.
+#+BEGIN_SRC sh
+cat ~/.ssh/id_rsa.pub | ssh su16-org@techela.cheme.cmu.edu "cat >> .ssh/authorized_keys"
+#+END_SRC
+
+Now you should be able to run commands like this and not be prompted for a password.
+
+#+BEGIN_SRC sh
+ssh su16-org@techela.cheme.cmu.edu ls
+#+END_SRC
+
 #+RESULTS:
 
-** install gitolite
-gitolite is the git server we use to create and manage git repositories for the course. First, login as the user for the course, and then run these commands.
-
-#+BEGIN_SRC sh
-cd $HOME
-git clone https://github.com/jkitchin/gitolite
-mkdir bin
-gitolite/install --to $HOME/bin
-#+END_SRC
-
-You need to get your ssh pub key in the directory. If you don't have a key already, generate one like this. I suggest you make it password free. This increases the risk of someone being able to use your key, but they need access to your machine to get it.
-
-#+BEGIN_SRC sh
-ssh-keygen -t rsa -f "your@email.address" -N ""
-#+END_SRC
-
-Then, from your local machine, run this.
-
-#+BEGIN_SRC sh
-scp ~/.ssh/id_rsa.pub su16-org@techela.cheme.cmu.edu:your@email.address.pub
-#+END_SRC
-
-Then, on the remote git server machine run this:
-#+BEGIN_SRC sh
-gitolite setup -pk your@email.address.pub
-#+END_SRC
-
-NOTE: the admin username is 'johnrkitchin+admin@gmail.com'
-Initialized empty Git repository in /home/su16-org/repositories/gitolite-admin.git/
-Initialized empty Git repository in /home/su16-org/repositories/testing.git/
-WARNING: /home/su16-org/.ssh missing; creating a new one
-    (this is normal on a brand new install)
-WARNING: /home/su16-org/.ssh/authorized_keys missing; creating a new one
-    (this is normal on a brand new install)
-
-** clone the admin repo
-Create a directory somewhere on your remote machine where you want the course to live. Then, clone the admin repo into it.
-
-#+BEGIN_SRC sh
-mkdir ~/techela/su16-org
-cd ~/techela/su16-org
-git clone su16-org@techela.cheme.cmu.edu:gitolite-admin
-#+END_SRC
-
-** edit gitolite/gitolite.conf
-Go ahead and configure git if you have not already done so.
-
-  git config --global user.email "jkitchin@andrew.cmu.edu"
-  git config --global user.name "John Kitchin"
-
-Now, we create the course repo. This is the repo that all students will have access to. We define the @instructors team
-
-
-Add this to gitolite-admin/conf/gitolite.conf.
-
-#+BEGIN_EXAMPLE
-repo gitolite-admin
-    RW+     =   johnrkitchin+admin@gmail.com
-
-@instructors = jkitchin@andrew.cmu.edu
-# file containing all student usernames
-include "students.conf"
-
-repo @all
-    RW+ = jkitchin@andrew.cmu.edu
-    RW = @instructors
-
-# public course for students
-repo course
-    RW+ = jkitchin@andrew.cmu.edu
-    RW = @instructors
-    R = @students
-
-# we create a single file for each student repo.
-# the repos are grouped in the student-work directory.
-include "student-work/*/*.conf"
-
-# enable convenient creation of assignment repos. I can just clone
-# these to make it work. When you push to these, they are readable to
-# the students. This might be problematic if they clone them to
-# early. They will have to pull again. But it makes it trivial to
-# create the assignments without getting into the conf file.
-#
-# git clone su16-org@techela.cheme.cmu.edu:assignments/label
-#
-# automatically creates the repo. To give students read access, run
-# this command.
-#
-# ssh su16-org@techela.cheme.cmu.edu perms assignments/label + READERS @students
-repo assignments/[a-z].*
-    C = jkitchin@andrew.cmu.edu
-    RW+ = jkitchin@andrew.cmu.edu
-    R = READERS
-
-# wild-repo for the solutions
-#
-# git clone su16-org@techela.cheme.cmu.edu:solutions/label
-#
-# to add read permission
-# ssh su16-org@techela.cheme.cmu.edu perms solutions/label + READERS @students
-# to remove read permission
-# ssh su16-org@techela.cheme.cmu.edu perms solutions/label - READERS @students
-repo solutions/[a-z].*
-    C = jkitchin@andrew.cmu.edu
-    RW+ = jkitchin@andrew.cmu.edu
-    R = READERS
-#+END_EXAMPLE
-
-Now, we create a non-empty directory for the student work configuration filesso we can commit it, and touch the students.conf file.
-#+BEGIN_SRC sh
-mkdir gitolite-admin/conf/student-work
-echo "student repo conf files go here." > gitolite-admin/conf/student-work/README.org
-
-echo "@students= " > conf/students.conf
-#+END_SRC
-
-That creates the course repo, and sets up the directories and files we need to create student repos. You have to commit and push these changes too.
-
-#+BEGIN_SRC sh
-git add student-work conf/students.conf
-git commit -m "add students.conf and repos"
-git push
-#+END_SRC
-
+** Setup the remote and local directories
+Run this command one time to setup the remote and local directories for the course elisp:tq-setup-course
 
 * Course setup in gitolite-admin
 This section describes the "private" course setup, i.e. the part students do not need to see.

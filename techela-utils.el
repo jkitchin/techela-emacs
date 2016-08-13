@@ -57,7 +57,7 @@ Optional argument ARGS extra arguments."
   (with-temp-file "SYSTEM-INFO"
     (insert "Created on: " (current-time-string) "\n")
     (insert (format "Name: %s\n" user-full-name))
-    (insert (format "Userid = %s\n" (gethash "user-mail-address" (tq-config-read-data))))
+    (insert (format "Userid = %s\n" (gethash "user-mail-address" (tq-read-user-data))))
     (insert (format "Email: %s\n" user-mail-address))
     (insert "System name: " (system-name))
     (insert (format "\n%s" system-type))
@@ -269,14 +269,14 @@ git located at: {{git}}
 ssh located at: {{ssh}}
 python located at: {{python}}
 
-* techela-config
-{{tq-config}}
+* techela-ssh-config
+{{tq-ssh-config}}
 
 * ssh pub key
 {{ssh-pub}}
 "
    (ht ("name" user-full-name)
-       ("userid" (gethash "user-mail-address" (tq-config-read-data)))
+       ("userid" (gethash "user-mail-address" (tq-read-user-data)))
        ("email" user-mail-address)
        ("window-system" window-system)
        ("tempdir" temporary-file-directory)
@@ -284,16 +284,16 @@ python located at: {{python}}
        ("git" (executable-find "git"))
        ("ssh" (executable-find "ssh"))
        ("python" (executable-find "python"))
-       ("tq-config" (with-temp-buffer
-		      (insert-file-contents (expand-file-name
-					     (format "~/techela/%s/techela-config"
-						     tq-current-course)))))
+       ("tq-ssh-config" (with-temp-buffer
+			  (insert-file-contents (expand-file-name
+						 (format "~/techela/%s/techela-ssh-config"
+							 tq-current-course)))))
        ("ssh-pub" (with-temp-buffer
 		    (insert-file-contents
 		     (expand-file-name
 		      (format "~/techela/%s/%s.pub"
 			      tq-current-course
-			      (gethash "user-mail-address" (tq-config-read-data)))))
+			      (gethash "user-mail-address" (tq-read-user-data)))))
 		    (buffer-string))))))
 
 (provide 'techela-utils)

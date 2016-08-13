@@ -42,7 +42,7 @@
 (defvar tq-user-root "~/techela"
   "Root directory to store all techela courses in.")
 
-(defvar tq-user-config-file nil
+(defvar tq-user-data-file nil
   "Configuration file for user data.")
 
 (defvar tq-root-directory nil
@@ -54,7 +54,7 @@ This location is not a git repository, but will be the name of the course.")
 This will be a git repository.  It is inside `tq-root-directory'.")
 
 (defvar tq-assignment-directory nil
-  "Directory where the assignment repos will be
+  "Directory where the assignment repos will be.
 It is inside `tq-root-directory'.")
 
 (defvar tq-current-course nil
@@ -73,8 +73,8 @@ It is inside `tq-root-directory'.")
   semester
   year
 
-  ;; a git-repo containing the course material. 				
-  course-repo 
+  ;; a git-repo containing the course material.
+  course-repo
 
   ;; the techela user@server: course@techela.cheme.cmu.edu
   techela-server)
@@ -82,7 +82,8 @@ It is inside `tq-root-directory'.")
 
 (defun tq-get-courses ()
   "Return a list of (cons description struct) for the available courses.
-Available courses are defined in the courses directory."
+Available courses are defined in the courses directory. All files
+in that directory with no extension are considered courses."
   (mapcar (lambda (f)
 	    (with-temp-buffer
 	      (insert-file-contents f)
@@ -133,8 +134,8 @@ you will be prompted for setup information."
 			    (expand-file-name tq-user-root)))
 	tq-course-directory (expand-file-name "course" tq-root-directory)
 	tq-course-syllabus (expand-file-name "syllabus.org" tq-course-directory)
-	tq-assignment-directory (expand-file-name "assignments" tq-root-directory) 
-	tq-user-config-file (expand-file-name "techela-user-config" tq-root-directory))
+	tq-assignment-directory (expand-file-name "assignments" tq-root-directory)
+	tq-user-data-file (expand-file-name "techela-user-data" tq-root-directory))
 
   ;; make directories if needed, including parents
   (unless (file-directory-p tq-root-directory)
@@ -143,11 +144,11 @@ you will be prompted for setup information."
   (unless (file-directory-p tq-assignment-directory)
     (make-directory tq-assignment-directory t))
 
-  (unless (file-exists-p tq-user-config-file)
+  (unless (file-exists-p tq-user-data-file)
     (tq-register course))
 
   ;; load directories to variables if they exist
-  (let ((data (tq-config-read-data))) 
+  (let ((data (tq-read-user-data)))
     ;; clone course if we need it. This will be in a repo called "course"
     ;; do not clone if the directory exists.
     (unless (and tq-course-directory (file-exists-p tq-course-directory))
@@ -182,13 +183,13 @@ you will be prompted for setup information."
 
 ;;;###autoload
 (defun tq-update-course ()
-  "update everything in the course directory."
+  "Update everything in the course directory."
   (interactive)
   (tq-check-internet)
   (save-some-buffers t) ;;save all buffers
   (with-current-directory
    tq-course-directory
-   (mygit "git stash") 
+   (mygit "git stash")
    (mygit "git pull origin master")
    (mygit "git submodule update")
    (mygit "git stash pop")
@@ -198,7 +199,7 @@ you will be prompted for setup information."
 (defun tq-get-assigned-assignments ()
   "Return a list of assignments from the syllabus.
 Assignments are headings that are tagged with :assignment:.  The assignment is
-a link in the heading." 
+a link in the heading."
   (with-current-buffer (find-file-noselect tq-course-syllabus)
     (org-map-entries
      (lambda ()
@@ -226,12 +227,12 @@ a link in the heading."
 	(with-current-directory
 	 student-repo-dir
 	 (mygit "git remote rename origin src")
-	 (mygit 
+	 (mygit
 	  (mustache-render
 	   "git remote add origin {{host}}:student-work/{{label}}/{{userid}}-{{label}}"
 	   (ht ("host" (techela-course-techela-server tq-current-course))
 	       ("label" label)
-	       ("userid" (gethash "user-mail-address" (tq-config-read-data)))))))))
+	       ("userid" (gethash "user-mail-address" (tq-read-user-data)))))))))
 
     (with-current-directory
      student-repo-dir
@@ -241,7 +242,7 @@ a link in the heading."
 	 ;; and commit merges if there are any
 	 (progn
 	   (message "Local changes found. Please wait while I stash and reapply them.")
-	   (mygit "git stash") 
+	   (mygit "git stash")
 	   (mygit "git pull origin master")
 	   (mygit "git stash pop"))
        ;; we were clean. Let's pull anyway to get remote changes.
@@ -278,7 +279,7 @@ Check *techela log* for error messages."
     (gb-set-filetag "TURNED-IN" (concat "Failed: " (current-time-string)))
     (save-buffer)
     (switch-to-buffer "*techela log*")
-    (error "Problem pushing to server.  Check the logs."))
+    (error "Problem pushing to server.  Check the logs"))
 
   (save-buffer)
   (message
@@ -293,37 +294,35 @@ Check *techela log* for error messages."
 ;;;###autoload
 (defun tq-update-my-assignments ()
   "Open each assignment.
-This will pull"
+This will pull each assigned assignment."
   (loop for assignment in (tq-get-assigned-assignments)
 	do
 	(org-open-link-from-string (format "[[assignment:%s]]" assignment))))
 
 
 ;; * Course agenda
-;; This sets up an agenda view of the course assignments
-(add-to-list 'org-agenda-custom-commands
-	     '("c" "Course Agenda"
-	       ((tags-todo "+DEADLINE>=\"<today>\""
-			   ((org-agenda-overriding-header
-			     "Press q to quit\nUpcoming Deadlines")))
-		;; now the agenda
-		(agenda ""
-			((org-agenda-overriding-header "two week agenda")
-			 (org-agenda-ndays 14)
-			 (org-agenda-tags-todo-honor-ignore-options t)
-			 (org-agenda-todo-ignore-scheduled nil)
-			 (org-agenda-todo-ignore-deadlines nil)
-			 (org-deadline-warning-days 0)
-			 ))
-
-		;; and last a global todo list
-		(todo "TODO"))))
 
 ;;;###autoload
 (defun tq-agenda ()
   "Show the course agenda from the syllabus."
   (interactive)
-  (let ((org-agenda-files (list tq-course-syllabus)))
+  (let ((org-agenda-custom-commands '(("c" "Course Agenda"
+				       ((tags-todo "+DEADLINE>=\"<today>\""
+						   ((org-agenda-overriding-header
+						     "Press q to quit\nUpcoming Deadlines")))
+					;; now the agenda
+					(agenda ""
+						((org-agenda-overriding-header "two week agenda")
+						 (org-agenda-ndays 14)
+						 (org-agenda-tags-todo-honor-ignore-options t)
+						 (org-agenda-todo-ignore-scheduled nil)
+						 (org-agenda-todo-ignore-deadlines nil)
+						 (org-deadline-warning-days 0)
+						 ))
+
+					;; and last a global todo list
+					(todo "TODO")))))
+	(org-agenda-files (list tq-course-syllabus)))
     (org-agenda "" "c")))
 
 
@@ -393,7 +392,7 @@ This will pull"
 	  (label (nth 0 fields))
 	  (data (nth 1 fields))
 	  (data-file (format "%s-%s.dat"
-			     (gethash "user-mail-address" (tq-config-read-data))
+			     (gethash "user-mail-address" (tq-read-user-data))
 			     label)))
      (with-temp-file data-file
        (insert data))
@@ -405,16 +404,19 @@ This will pull"
 ;; * email functions
 ;;;###autoload
 (defun tq-submit-by-email ()
-  "Submit contents of current `default-directory' as a zip file attached to an email.
-This is normally only done after the deadline, when you cannot push to the git repo, or when there is some issue with the git server. There must be extenuating circumstances for this to be used."
+  "Submit contents of current directory as a zip file attached to an email.
+This is normally only done after the deadline, when you cannot
+push to the git repo, or when there is some issue with the git
+server. There must be extenuating circumstances for this to be
+used."
   (interactive)
   (tq-check-internet)
 
   (unless (executable-find "zip")
-    (error "Could not find a zip executable."))
+    (error "Could not find a zip executable"))
 
-  (let ((zip-name (concat 
-		   (gethash "user-mail-address" (tq-config-read-data))
+  (let ((zip-name (concat
+		   (gethash "user-mail-address" (tq-read-user-data))
 		   "-"
 		   (file-name-sans-extension
 		    (file-name-nondirectory
@@ -450,7 +452,17 @@ This is normally only done after the deadline, when you cannot push to the git r
     (insert "jkitchin@andrew.cmu.edu")
     (message-goto-subject)
     (insert (format "[%s email turnin]" tq-current-course))
-    (message-send-and-exit)))
+    ;; TODO: still cmu specific
+    (let ((send-mail-function 'smtpmail-send-it)
+	  (user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
+	  (smtpmail-smtp-server "smtp.andrew.cmu.edu")
+	  (smtpmail-smtp-service 587)
+	  (smtpmail-stream-type nil)
+	  (smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil)))
+	  (starttls-use-gnutls t)
+	  (starttls-gnutls-program "gnutls-cli")
+	  (mail-host-address "andrew.cmu.edu"))
+      (message-send-and-exit))))
 
 
 ;;;###autoload
