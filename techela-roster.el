@@ -25,7 +25,7 @@ The data structure is
  :position (point))
 
 Use it like this:
- (plist-get (cdr (assoc \"usr@domain.com\" (tq-roster-data))) :name)."
+ (plist-get (cdr (assoc \"user@domain.com\" (tq-roster-data))) :name)."
   (with-current-buffer
       (find-file-noselect tq-roster-file) 
     (org-map-entries
@@ -148,6 +148,7 @@ Create a link to email them about it."
 (defvar tq-roster-marked nil
   "Store marked candidates in `tq-roster'.")
 
+
 (defun tq-roster-mark-candidate () 
   "Add current candidate to `tq-roster-marked'.
 If candidate is already in, remove it."
@@ -210,6 +211,7 @@ If candidate is already in, remove it."
 	     x))
 	  (tq-roster-data)))
 
+
 (defun tq-roster ()
   "Open the roster in an ivy selection buffer."
   (interactive)
@@ -248,6 +250,7 @@ X is a element from `tq-roster-candidates'."
   (goto-char (plist-get (cdr x) :position))
   (show-subtree))
 
+
 (defun tq-roster-email (x)
   "Email student X, unless `tq-roster-marked' is non-nil." 
   (let ((email (if tq-roster-marked
@@ -262,32 +265,6 @@ X is a element from `tq-roster-candidates'."
     (message-goto-subject)
     (insert (format "[%s] " tq-current-course))))
 
-
-;; * Utility function for roster.dat
-;; TODO
-;; This function should take a roster dat file from S3 and update the roster.org file.
-(defun tq-roster-from-dat (dat-file)
-  "Return an a-list roster in DAT-FILE.
-
-DAT-FILE is a csv file from the CMU course data.
-
-The data structure returned is
-(userid :name Full name :email userid@somewhere.edu)
-
-Use it like this:
-(plist-get (cdr (assoc \"jboes\" (tq-roster))) :name)"
-
-  (with-temp-buffer
-    (insert-file-contents dat-file)
-
-    (let ((contents (cdr (csv-parse-buffer nil)))) ;; first line is header
-      (mapcar (lambda (x)
-		(list (nth 8 x)		; userid
-		      :name (format "%s %s"
-				    (nth 6 x)  ; first name
-				    (nth 5 x)) ; last name
-		      :email (nth 9 x)))
-	      contents))))
 
 (provide 'techela-roster)
 

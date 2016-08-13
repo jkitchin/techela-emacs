@@ -1,9 +1,13 @@
 ;;; techela-setup.el --- setup techela courses 
 
 ;;; Commentary:
-;; Here we create necessary scripts to run ssh and git, and collect user
-;; information for a course. We generate the ssh keys and send them to the
-;; instructor.
+;; Here we create necessary scripts to run ssh and git. We generate the ssh keys
+;; and send them to the instructor.
+
+;; Students and TA's should run `tq-register'. 
+
+;; Instructors should run `tq-setup-course' to setup the course locally and
+;; remotely. This only needs to be run once.
 
 (require 'json)
 (require 'mustache)
@@ -12,41 +16,41 @@
 
 ;;; Code:
 
-(defun tq-config-read-data ()
-  "Read and return the data in `tq-config-file'."
-  (if (file-exists-p tq-user-config-file)
+;; * Student setup
+(defun tq-read-user-data ()
+  "Read and return the data in `tq-user-data-file'."
+  (if (file-exists-p tq-user-data-file)
       (let ((json-object-type 'hash-table))
-	(json-read-file tq-user-config-file))
+	(json-read-file tq-user-data-file))
     ;; no file exists, return an empty hash
     (make-hash-table :test 'equal)))
 
 
-(defun tq-config-write-data (data)
-  "Write DATA to `tq-config-file'.
-DATA should be obtained and modified from `tq-config-read-data'."
-  (with-temp-file tq-user-config-file
+(defun tq-write-user-data (data)
+  "Write DATA to `tq-user-data-file'.
+DATA should be obtained and modified from `tq-read-user-data'."
+  (with-temp-file tq-user-data-file
     (insert (json-encode-hash-table data))))
 
 
 (defun tq-setup-user ()
-  "Makes sure these variables are set:  `user-full-name',
-`user-mail-address'. Configure git with this information where
-needed."
-
-  ;; Full name
-  (let ((data (tq-config-read-data)))
-    (unless (gethash "user-full-name" data)
-      (puthash "user-full-name" (read-from-minibuffer "Enter your full name: ") data)
-      (tq-config-write-data data)))
-
-  ;; email address
-  (let ((data (tq-config-read-data)))
-    (unless (gethash "user-mail-address" data)
-      (puthash "user-mail-address" (read-from-minibuffer "Enter your email address: ") data)
-      (tq-config-write-data data)))
+  "Get and store user data like name and email.
+Configure git with this information where needed."
 
   (unless (executable-find "git")
     (error "I cannot find git.  You cannot use techela"))
+
+  ;; Full name
+  (let ((data (tq-read-user-data)))
+    (unless (gethash "user-full-name" data)
+      (puthash "user-full-name" (read-from-minibuffer "Enter your full name: ") data)
+      (tq-write-user-data data)))
+
+  ;; email address
+  (let ((data (tq-read-user-data)))
+    (unless (gethash "user-mail-address" data)
+      (puthash "user-mail-address" (read-from-minibuffer "Enter your email address: ") data)
+      (tq-write-user-data data)))
 
   (when (string= "" (shell-command-to-string "git config --global user.name"))
     (shell-command (format "git config --global user.name \"%s\""
@@ -58,6 +62,7 @@ needed."
 
   (when (string= "" (shell-command-to-string "git config --global push.default"))
     (shell-command "git config --global push.default matching"))
+  
   (message "Done with user information."))
 
 
@@ -72,26 +77,23 @@ scripts. Email key to instructor."
   ;; check for tq-root-directory
   (unless (file-exists-p tq-root-directory)
     (make-directory tq-root-directory t))
-
-  ;; now we know the tq-root-directory directory exists, check
-  ;; for userid and userid.pub, and make a pair if needed
-
+  
   ;; here we look for the existence of tq-root-directory/userid.pub which is a
-  ;; private ssh key. We do not replace these since they are registered.
+  ;; an ssh key. We do not replace these since they are registered.
   (unless (file-exists-p (expand-file-name
 			  (concat
-			   (gethash "user-mail-address" (tq-config-read-data))
+			   (gethash "user-mail-address" (tq-read-user-data))
 			   ".pub")
 			  tq-root-directory))
     ;; we make one with no password
     (shell-command (format "ssh-keygen -t rsa -f \"%s\" -N \"\""
 			   (expand-file-name
-			    (gethash "user-mail-address" (tq-config-read-data))
+			    (gethash "user-mail-address" (tq-read-user-data))
 			    tq-root-directory))))
 
-  ;; Now we make the config file. 
+  ;; Now we make the ssh config file. 
   (with-temp-file (expand-file-name
-		   "techela-config"
+		   "techela-ssh-config"
 		   tq-root-directory)
     (insert (mustache-render
 	     "Host {{host}}
@@ -99,12 +101,14 @@ scripts. Email key to instructor."
   IdentityFile {{identify-file}}
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null\n"
-	     (ht ("host" (nth 1 (split-string (techela-course-techela-server tq-current-course) "@")))
+	     (ht ("host" (nth 1 (split-string
+				 (techela-course-techela-server tq-current-course) "@")))
 		 ("course" (symbol-name (techela-course-label  tq-current-course)))
 		 ("identify-file" (expand-file-name
-				   (gethash "user-mail-address" (tq-config-read-data))
+				   (gethash "user-mail-address" (tq-read-user-data))
 				   tq-root-directory))))))
 
+  ;; This is the executable ssh script
   (with-temp-file (expand-file-name
 		   "techela_ssh"
 		   tq-root-directory)
@@ -112,13 +116,14 @@ scripts. Email key to instructor."
      (format "#!/bin/bash
 # custom ssh for running git in batch mode for techela with the user-key
 exec ssh -F \"%s\" -o \"BatchMode yes\" \"$@\"
-# end" (expand-file-name "techela-config" tq-root-directory))))
+# end" (expand-file-name "techela-ssh-config" tq-root-directory))))
 
   (set-file-modes (expand-file-name
 		   "techela_ssh"
 		   tq-root-directory)
 		  #o755)
 
+  ;; This is an executable git script
   (with-temp-file (expand-file-name
 		   "techela_git"
 		   tq-root-directory)
@@ -136,18 +141,19 @@ ENV GIT_SSH=%s git $@
   ;; Finally setup and send the email
   ;; now create an email and send the key to the instructor
   (compose-mail)
+  ;; Replace whatever emacs puts in with the user email.
   (message-goto-from)
   (message-beginning-of-line)
   (kill-line)
-  (insert (gethash "user-mail-address" (tq-config-read-data)))
+  (insert (gethash "user-mail-address" (tq-read-user-data)))
   (message-goto-to)
   (insert (techela-course-instructor-email tq-current-course))
   (message-goto-subject)
   (insert (format "[%s] %s pubkey" (techela-course-label tq-current-course)
-		  (gethash "user-mail-address" (tq-config-read-data))))
+		  (gethash "user-mail-address" (tq-read-user-data))))
   (mml-attach-file (expand-file-name
 		    (concat (gethash "user-mail-address"
-				     (tq-config-read-data)) ".pub")
+				     (tq-read-user-data)) ".pub")
 		    tq-root-directory))
   (message-goto-body)
   ;; let us get some user/computer information
@@ -156,8 +162,10 @@ ENV GIT_SSH=%s git $@
 	    (insert-file-contents "SYSTEM-INFO")
 	    (buffer-string)))
   (delete-file "SYSTEM-INFO")
+
+  ;; TODO: this is still CMU specific
   (let ((send-mail-function 'smtpmail-send-it)
-	(user-mail-address (gethash "user-mail-address" (tq-config-read-data)))
+	(user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
 	(smtpmail-smtp-server "smtp.andrew.cmu.edu")
 	(smtpmail-smtp-service 587)
 	(smtpmail-stream-type nil)
@@ -167,12 +175,15 @@ ENV GIT_SSH=%s git $@
 	(mail-host-address "andrew.cmu.edu"))
     (message-send-and-exit)))
 
+
 (defun tq-register (course)
   "Register for COURSE.
 COURSE is a struct representing the course. This sets up your
 local machine and emails the instructor your ssh pub key. You
 cannot access the course until you get an email confirmation
-back."
+back.
+
+This is for students and TAs."
   (interactive
    (list
     (prog2
@@ -181,7 +192,6 @@ back."
 	  (cdr (assoc (completing-read
 		       "Course name: " courses)
 		      courses))))))
-
   
   ;; Set this for the current session
   (setq tq-current-course course)
@@ -193,7 +203,7 @@ back."
 			    (expand-file-name tq-user-root))))
 
   (setq tq-course-directory (expand-file-name "course" tq-root-directory)
-	tq-user-config-file (expand-file-name "techela-user-config" tq-root-directory))
+	tq-user-data-file (expand-file-name "techela-user-data" tq-root-directory))
 
   ;; make root directory if needed, including parents
   (unless (file-exists-p tq-root-directory)
@@ -201,22 +211,15 @@ back."
   
   (tq-setup-user)
   (tq-setup-ssh)
-  (message "Please wait for further instructions."))
+  (message "Please wait for further instructions from the instructor."))
 
 
-
+;; * Admin course setup functions
 (defun tq-setup-remote-course (course)
   "Setup COURSE on the remote server and locally.
 COURSE should be a struct from `tq-get-courses'. You should have
 password free communication with the techela server using ssh
-keys.
-
-Locally:
-cat ~/.ssh/id_rsa.pub | ssh su16-org@techela.cheme.cmu.edu \"cat >> .ssh/authorized_keys\"
-
-on the server:
-chmod 600 .ssh/authorized_keys 
-"
+keys."
   (interactive
    (list
     (prog2
@@ -225,22 +228,7 @@ chmod 600 .ssh/authorized_keys
 	  (cdr (assoc (completing-read
 		       "Course name: " courses)
 		      courses))))))
-
-  (setq tq-current-course course
-	tq-root-directory (expand-file-name
-			   (symbol-name (techela-course-label course))
-			   tq-user-root)
-	tq-gitolite-admin-dir (expand-file-name
-			       "gitolite-admin"
-			       tq-root-directory))
   
-  ;; Setup local directory structure
-  (unless (file-directory-p tq-user-root)
-    (make-directory tq-user-root t))
-
-  (unless (file-directory-p tq-root-directory)
-    (make-directory tq-root-directory))
-
   ;; clone gitolite remotely if needed
   (shell-command (format "ssh %s \"[ ! -d gitolite ] && git clone https://github.com/jkitchin/gitolite\""
 			 (techela-course-techela-server course)))
@@ -255,27 +243,115 @@ chmod 600 .ssh/authorized_keys
 			   (techela-course-techela-server course)
 			   user)))
 
+  (setq tq-root-directory (expand-file-name (symbol-name (techela-course-label course))
+					    tq-user-root))
+  
+  (unless (file-directory-p tq-root-directory)
+    (make-directory tq-root-directory t))
+
   ;; generate a local admin ssh key if needed
-  (unless (file-exists-p (expand-file-name (techela-course-instructor-email course)
-					   tq-root-directory))
+  (unless (file-exists-p (expand-file-name
+			  (techela-course-instructor-email course)
+			  tq-root-directory))
     (let ((default-directory tq-root-directory))
       (shell-command (format "ssh-keygen -t rsa -f %s -N \"\""
 			     (techela-course-instructor-email course)))))
+  
+  ;; copy admin ssh key over to server if it isn't there
+  (unless (= 0 (shell-command (format "ssh %s \"ls %s.pub\""
+				      (techela-course-techela-server course)
+				      (techela-course-instructor-email course))))
+    (shell-command (format "scp %s.pub %s:%s.pub"
+			   (expand-file-name
+			    (techela-course-instructor-email course) tq-root-directory)
+			   (techela-course-techela-server course)
+			   (techela-course-instructor-email course))))
 
-  ;; copy admin ssh key over to server, then setup gitolite
-  (shell-command (format "scp %s.pub %s:%s.pub"
-			 (expand-file-name
-			  (techela-course-instructor-email course) tq-root-directory)
-			 (techela-course-techela-server course)
-			 (techela-course-instructor-email course)))
+  (unless (= 0 (shell-command
+		(format "ssh %s \"[ -e .gitolite/conf/gitolite.conf ] && grep %s .gitolite/conf/gitolite.conf\""
+			(techela-course-techela-server course)
+			(techela-course-instructor-email course))))
+    (shell-command (format "ssh %s \"bin/gitolite setup -pk %s.pub\""
+			   (techela-course-techela-server course)
+			   (techela-course-instructor-email course))))
+  (message "Done setting up remote server."))
 
-  (shell-command (format "ssh %s \"bin/gitolite setup -pk %s.pub\""
-			 (techela-course-techela-server course)
-			 (techela-course-instructor-email course)))
+
+(defun tq-setup-local-directories (course)
+  "Setup our local directories for the COURSE."
+  (interactive
+   (list
+    (prog2
+	(tq-check-internet)
+	(let ((courses (tq-get-courses)))
+	  (cdr (assoc (completing-read
+		       "Course name: " courses)
+		      courses))))))
+
+  (setq tq-current-course course
+	tq-root-directory (expand-file-name
+			   (symbol-name (techela-course-label course))
+			   tq-user-root)
+	tq-course-assignments-directory (expand-file-name
+					 "assignments"
+					 tq-root-directory)
+	tq-course-solutions-directory (expand-file-name
+				       "solutions"
+				       tq-root-directory)
+	tq-course-student-work-directory (expand-file-name
+					  "student-work"
+					  tq-root-directory)
+	tq-course-class-work-directory (expand-file-name
+					"class-work"
+					tq-root-directory)
+	tq-course-directory (expand-file-name
+			     "course"
+			     tq-root-directory)
+	tq-gitolite-admin-dir (expand-file-name
+			       "gitolite-admin"
+			       tq-root-directory)
+	tq-user-data-file (expand-file-name
+			   "techela-user-data"
+			   tq-root-directory))
+
+  (let ((data (tq-read-user-data)))
+    (unless (gethash "user-full-name" data)
+      (puthash "user-full-name" (techela-course-instructor course) data)
+      (tq-write-user-data data))
+    (unless (gethash "user-mail-address" data)
+      (puthash "user-mail-address" (techela-course-instructor-email course) data)
+      (tq-write-user-data data)))
+  
+  ;; Setup local directory structure - ~/techela
+  (unless (file-directory-p tq-user-root)
+    (make-directory tq-user-root t))
+
+  ;; ~/techela/course-label
+  (unless (file-directory-p tq-root-directory)
+    (make-directory tq-root-directory))
+
+  (with-temp-file (expand-file-name "README.org"
+				    tq-root-directory)
+    (insert
+     (mustache-render (with-temp-buffer (insert-file-contents
+					 (expand-file-name
+					  "templates/readme.org"
+					  (file-name-directory
+					   (locate-library "techela"))))
+					(buffer-string))
+		      (ht ("host" (techela-course-techela-server tq-current-course))
+			  ("course-repo" (techela-course-course-repo tq-current-course))
+			  ("label" (symbol-name (techela-course-label tq-current-course)))
+			  ("techela_ssh" (expand-file-name
+					  "techela_ssh"
+					  tq-root-directory))
+			  ("techela_git" (expand-file-name
+					  "techela_git"
+					  tq-root-directory))))))
 
   ;; Now generate ssh-config files to use the key
   (with-temp-file (expand-file-name
-		   "techela-config"
+		   "techela-ssh-config"
 		   tq-root-directory)
     (insert (mustache-render
 	     "Host {{host}}
@@ -306,7 +382,7 @@ Host techela
      (format "#!/bin/bash
 # custom ssh for running git in batch mode for techela with the user-key
 exec ssh -F \"%s\" -o \"BatchMode yes\" \"$@\"
-# end" (expand-file-name "techela-config" tq-root-directory))))
+# end" (expand-file-name "techela-ssh-config" tq-root-directory))))
   
   
   (set-file-modes (expand-file-name
@@ -327,8 +403,71 @@ ENV GIT_SSH=%s git $@
 		   "techela_git"
 		   tq-root-directory)
 		  #o755)
+
+  ;; assignments
+  (unless (file-directory-p tq-course-assignments-directory)
+    (make-directory tq-course-assignments-directory t)
+    (with-temp-file (expand-file-name "README.org"
+				      tq-course-assignments-directory)
+      (insert
+       (mustache-render (with-temp-buffer (insert-file-contents
+					   (expand-file-name
+					    "templates/assignments-readme.org"
+					    (file-name-directory
+					     (locate-library "techela"))))
+					  (buffer-string))
+			(ht ("host" (techela-course-techela-server tq-current-course))
+			    ("tq-root-directory" tq-root-directory))))))
   
+  ;; solutions
+  (unless (file-directory-p tq-course-solutions-directory)
+    (make-directory tq-course-solutions-directory t)
+    (with-temp-file (expand-file-name "README.org"
+				      tq-course-solutions-directory)
+      (insert
+       (mustache-render (with-temp-buffer (insert-file-contents
+					   (expand-file-name
+					    "templates/solutions-readme.org"
+					    (file-name-directory
+					     (locate-library "techela"))))
+					  (buffer-string))
+			(ht ("host" (techela-course-techela-server tq-current-course)))))))
   
+  ;; student-work
+  (unless (file-directory-p tq-course-student-work-directory)
+    (make-directory tq-course-student-work-directory t)
+    (with-temp-file (expand-file-name "README.org"
+				      tq-course-student-work-directory)
+      (insert
+       (mustache-render (with-temp-buffer (insert-file-contents
+					   (expand-file-name
+					    "templates/student-work-readme.org"
+					    (file-name-directory
+					     (locate-library "techela"))))
+					  (buffer-string))
+			(ht ("host" (techela-course-techela-server tq-current-course)))))))
+  
+  ;; class-work
+  (unless (file-directory-p tq-course-class-work-directory)
+    (make-directory tq-course-class-work-directory t)
+    (with-temp-file (expand-file-name "README.org"
+				      tq-course-class-work-directory)
+      (insert
+       (mustache-render (with-temp-buffer (insert-file-contents
+					   (expand-file-name
+					    "templates/class-work-readme.org"
+					    (file-name-directory
+					     (locate-library "techela"))))
+					  (buffer-string))
+			(ht ("host" (techela-course-techela-server tq-current-course)))))))
+
+  ;; course
+  (unless (file-directory-p tq-course-directory)
+    (with-current-directory
+     tq-root-directory
+     (mygit (format "git clone %s course" (techela-course-course-repo tq-current-course)))))
+
+  ;; Now the gitolite-admin
   (unless (file-directory-p tq-gitolite-admin-dir)
     (with-current-directory tq-root-directory
 			    (mygit (format "git clone %s:gitolite-admin"
@@ -352,6 +491,7 @@ ENV GIT_SSH=%s git $@
 						   (techela-course-teaching-assistants course)
 						   " "))
 		 ("techela-server" (techela-course-techela-server course))))))
+  
   (with-temp-file
       (expand-file-name
        "conf/students.conf"
@@ -363,13 +503,22 @@ ENV GIT_SSH=%s git $@
    (mygit "git commit conf/gitolite.conf -m \"Setup gitolite.conf for techela.\"")
    (mygit "git add conf/students.conf")
    (mygit "git commit conf/students.conf -m \"Add students.conf for techela.\"")
-   (mygit "git push origin master"))
+   (mygit "git push origin master")))
 
+(defun tq-setup-course (course)
+  "Setup the remote and local directories for COURSE."
+  (interactive
+   (list
+    (prog2
+	(tq-check-internet)
+	(let ((courses (tq-get-courses)))
+	  (cdr (assoc (completing-read
+		       "Course name: " courses)
+		      courses))))))
+  (tq-setup-remote-course course)
+  (tq-setup-local-directories course)
   (require 'techela-admin)
   (techela-admin course))
-
-
-
 
 (provide 'techela-setup)
 
