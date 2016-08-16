@@ -50,15 +50,15 @@ Configure git with this information where needed."
   (let ((data (tq-read-user-data)))
     (unless (gethash "user-mail-address" data)
       (puthash "user-mail-address" (read-from-minibuffer "Enter your email address: ") data)
-      (tq-write-user-data data)))
+      (tq-write-user-data data))
 
-  (when (string= "" (shell-command-to-string "git config --global user.name"))
-    (shell-command (format "git config --global user.name \"%s\""
-			   (gethash "user-full-name" data))))
+    (when (string= "" (shell-command-to-string "git config --global user.name"))
+      (shell-command (format "git config --global user.name \"%s\""
+			     (gethash "user-full-name" data))))
 
-  (when (string= "" (shell-command-to-string "git config --global user.email"))
-    (shell-command (format "git config --global user.email %s"
-			   (gethash "user-mail-address" data))))
+    (when (string= "" (shell-command-to-string "git config --global user.email"))
+      (shell-command (format "git config --global user.email %s"
+			     (gethash "user-mail-address" data)))))
 
   (when (string= "" (shell-command-to-string "git config --global push.default"))
     (shell-command "git config --global push.default matching"))
