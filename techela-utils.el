@@ -77,7 +77,7 @@ Optional argument ARGS extra arguments."
 Opens all course files, then does the search."
   (interactive (list (read-regexp "Regexp: ")))
 
-  (let ((org-files (files-in-below-directory tq-course-directory)))
+  (let ((org-files (f-files tq-course-directory (lambda (f) (string= "org" (f-ext f))) t)))
     ;; open all the files so we can use multi-occur
     (dolist (f org-files)
       (find-file-noselect f))
@@ -139,7 +139,7 @@ Opens all course files, then does the search."
   (interactive)
   (let ((*index-links*)
 	(*initial-letters*)
-	(org-files (files-in-below-directory tq-course-directory)))
+	(org-files (f-files tq-course-directory (lambda (f) (string= (f-ext f) "org")) t)))
     ;; get links
     (dolist (f org-files)
       (find-file f)
