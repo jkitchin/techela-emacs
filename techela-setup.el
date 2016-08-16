@@ -196,17 +196,7 @@ ENV GIT_SSH=%s git $@
 	    (buffer-string)))
   (delete-file "SYSTEM-INFO")
 
-  ;; TODO: this is still CMU specific
-  (let ((send-mail-function 'smtpmail-send-it)
-	(user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
-	(smtpmail-smtp-server "smtp.andrew.cmu.edu")
-	(smtpmail-smtp-service 587)
-	(smtpmail-stream-type nil)
-	(smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil)))
-	(starttls-use-gnutls t)
-	(starttls-gnutls-program "gnutls-cli")
-	(mail-host-address "andrew.cmu.edu"))
-    (message-send-and-exit)))
+  (message-send-and-exit))
 
 
 (defun tq-register (course)
