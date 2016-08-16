@@ -58,7 +58,26 @@ Configure git with this information where needed."
 
     (when (string= "" (shell-command-to-string "git config --global user.email"))
       (shell-command (format "git config --global user.email %s"
-			     (gethash "user-mail-address" data)))))
+			     (gethash "user-mail-address" data))))
+    
+    ;; Append a line to the ~/.authinfo for authentication with mail
+    ;; Users will be prompted for their andrew password
+    (unless (file-exists-p (expand-file-name "~/.authinfo"))
+      (with-temp-file (expand-file-name "~/.authinfo")))
+
+    (let ((contents (with-temp-buffer
+		      (insert-file-contents
+		       (expand-file-name "~/.authinfo"))
+		      (buffer-string)))
+	  user-id)
+      (setq user-id (car (split-string (gethash "user-mail-address" data) "@")))
+      (unless (string-match "smtp\.andrew\.cmu\.edu" contents)
+	(with-temp-file (expand-file-name "~/.authinfo")
+	  (when contents (insert contents))
+	  (goto-char (point-max))
+	  (insert
+	   (format
+	    "\nmachine smtp.andrew.cmu.edu port 587 login %s" user-id))))))
 
   (when (string= "" (shell-command-to-string "git config --global push.default"))
     (shell-command "git config --global push.default matching"))
@@ -78,23 +97,6 @@ Configure git with this information where needed."
 
   (unless (and (boundp 'mail-host-address) mail-host-address)
     (setq mail-host-address "andrew.cmu.edu"))
-
-  ;; Append a line to the ~/.authinfo for authentication with mail
-  ;; Users will be prompted for their andrew password
-  (unless (file-exists-p (expand-file-name "~/.authinfo"))
-    (with-temp-file (expand-file-name "~/.authinfo")))
-
-  (let ((contents (with-temp-buffer
-		    (insert-file-contents
-		     (expand-file-name "~/.authinfo"))
-		    (buffer-string))))
-    (unless (string-match "smtp\.andrew\.cmu\.edu" contents)
-      (with-temp-file (expand-file-name "~/.authinfo")
-	(when contents (insert contents))
-	(goto-char (point-max))
-	(insert
-	 (format
-	  "\nmachine smtp.andrew.cmu.edu port 587 login %s" tq-userid)))))
   
   (message "Done with user information."))
 
