@@ -201,11 +201,9 @@ need to make sure the student is in the roster, and that
 to assignments."
   (interactive
    (list
-    (plist-get (cdr (assoc (completing-read
-			    "Label: "
-			    (tq-get-possible-assignments) nil t)
-			   (tq-get-possible-assignments)))
-	       :label)
+    (completing-read
+     "Label: "
+     (tq-get-possible-assignments) nil t)
     (completing-read "Userid: " (tq-get-userids))))
   ;; first, create the repo and push it.
   (let* ((repo-name (tq-get-repo-name label userid)))
