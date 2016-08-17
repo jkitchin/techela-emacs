@@ -219,6 +219,7 @@ a link in the heading."
 
     ;; Get the assignment by cloning if needed, and rest the remotes.
     (unless (file-directory-p student-repo-dir)
+      (make-directory tq-assignment-directory t)
       (let ((default-directory tq-assignment-directory)
 	    (repo (format "assignments/%s" label)))
 	;; clone and open label.org
