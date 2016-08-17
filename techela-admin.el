@@ -404,6 +404,7 @@ section.
 	    (unless (-contains? entries (format "assignment:%s" label))
 	      ;; add new entry
 	      (goto-char (point-max))
+	      (toggle-read-only -1)
 	      (insert "\n** TODO assignment:" label)
 	      (org-set-tags-to ":assignment:")
 	      (goto-char (point-max))
@@ -414,6 +415,7 @@ section.
 	      (org-deadline nil DUEDATE)
 	      (goto-char (point-max))
 	      (insert "\n")
+	      (toggle-read-only 1)
 	      (save-buffer)))))
       
       ;; Finally, we need to commit the syllabus change, and push it.
