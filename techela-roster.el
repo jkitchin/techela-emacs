@@ -263,7 +263,7 @@ X is a element from `tq-roster-candidates'."
     (message-goto-to)
     (insert email)
     (message-goto-subject)
-    (insert (format "[%s] " tq-current-course))))
+    (insert (format "[%s] " (techela-course-label tq-current-course)))))
 
 
 (provide 'techela-roster)
