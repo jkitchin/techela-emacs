@@ -133,7 +133,7 @@ scripts. Email key to instructor."
     (insert (mustache-render
 	     "Host {{host}}
   User {{course}}
-  IdentityFile {{identify-file}}
+  IdentityFile \"{{identify-file}}\"
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null\n"
 	     (ht ("host" (nth 1 (split-string
@@ -165,7 +165,7 @@ exec ssh -F \"%s\" -o \"BatchMode yes\" \"$@\"
     (insert
      (format "#!/bin/bash
 # custom git for techela with the user-key
-ENV GIT_SSH=%s git $@
+ENV GIT_SSH=\"%s\" git $@
 # end" (expand-file-name "techela_ssh" tq-root-directory))))
   
   (set-file-modes (expand-file-name

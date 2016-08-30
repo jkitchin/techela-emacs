@@ -137,7 +137,7 @@ Create a link to email them about it."
 	(format "[[elisp:(tq-open-roster-to-user \"%s\")][%s]]"
 		userid
 		userid)
-	(format "[[elisp:(progn (tq-email \"%s@andrew.cmu.edu\")(message-goto-subject)(insert \" Missing ssh pub key\")(message-goto-body)(insert \"Dear %s,\\n\\nI need you to run M-x techela-register to generate and send my your ssh.pub key. Please see me or the TAs if you need help.\\n\\nThanks,\\nProfessor Kitchin\\n\"))][Email %s]]"
+	(format "[[elisp:(progn (compose-mail \"%s\")(message-goto-subject)(insert \" Missing ssh pub key\")(message-goto-body)(insert \"Dear %s,\\n\\nI need you to run M-x techela-register to generate and send my your ssh.pub key. Please see me or the TAs if you need help.\\n\\nThanks,\\nProfessor Kitchin\\n\"))][Email %s]]"
 		userid
 		(plist-get (cdr (assoc userid (tq-roster-data))) :name) userid)))))
   (org-mode))
