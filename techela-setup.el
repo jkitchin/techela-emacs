@@ -133,7 +133,7 @@ scripts. Email key to instructor."
     (insert (mustache-render
 	     "Host {{host}}
   User {{course}}
-  IdentityFile {{identify-file}}
+  IdentityFile \"{{identify-file}}\"
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null\n"
 	     (ht ("host" (nth 1 (split-string
