@@ -287,12 +287,12 @@ python located at: {{python}}
        ("tq-ssh-config" (with-temp-buffer
 			  (insert-file-contents (expand-file-name
 						 (format "~/techela/%s/techela-ssh-config"
-							 tq-current-course)))))
+							 (techela-course-label tq-current-course))))))
        ("ssh-pub" (with-temp-buffer
 		    (insert-file-contents
 		     (expand-file-name
 		      (format "~/techela/%s/%s.pub"
-			      tq-current-course
+			      (techela-course-label tq-current-course)
 			      (gethash "user-mail-address" (tq-read-user-data)))))
 		    (buffer-string))))))
 
