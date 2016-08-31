@@ -452,7 +452,7 @@ used."
     (message-goto-to)
     (insert "jkitchin@andrew.cmu.edu")
     (message-goto-subject)
-    (insert (format "[%s email turnin]" tq-current-course))
+    (insert (format "[%s email turnin]" (techela-course-label tq-current-course)))
     ;; TODO: still cmu specific
     (let ((send-mail-function 'smtpmail-send-it)
 	  (user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
