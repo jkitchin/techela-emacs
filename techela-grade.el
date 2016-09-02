@@ -84,10 +84,10 @@ in."
   (interactive)
   (save-window-excursion
     (let ((rubric)
-	  (label (file-name-sans-extension
-		  (file-name-nondirectory (buffer-name))))
+	  (label (s-trim (substring-no-properties
+			  (gb-get-filetag "ASSIGNMENT"))))
 	  (cb (current-buffer))
-	  (tbuf (find-file-noselect (expand-file-name "syllabus.org" tq-course-dir))))
+	  (tbuf (find-file-noselect (expand-file-name "syllabus.org" tq-course-directory))))
       (unless (-contains? (tq-get-assigned-assignments) label)
 	(error "%s is not an assignment" label))
 
