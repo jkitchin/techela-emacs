@@ -266,12 +266,16 @@ Check *techela log* for error messages."
   ;; Let's assume turning in will work, and set the time.
   (gb-set-filetag "TURNED-IN" (current-time-string))
 
-  (save-some-buffers t t)		; make sure all buffers are saved
+  ;; make sure all buffers are saved
+  (save-some-buffers t t)
+  
+  (mygit "git add *")
   
   (let ((status (car (mygit "git commit -am \"turning in\""))))
     (unless (or (= 0 status)		; no problem
 		(= 1 status))		; no change in files
-      (gb-set-filetag "TURNED-IN" (concat "Failed: " (current-time-string)))
+      (gb-set-filetag "TURNED-IN"
+		      (concat "Failed: " (current-time-string)))
       (switch-to-buffer "*techela log*")
       (error "Problem committing.  Check the logs")))
 
