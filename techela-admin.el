@@ -293,6 +293,11 @@ Interactively prompt for points, category, rubric and due date."
 		      (techela-course-techela-server tq-current-course)
 		      label)))
 
+      (with-temp-file (expand-file-name
+		       ".gitignore"
+		       assignment-dir)
+	(insert "\#*\n*ltxpng*\n"))
+
       ;; create the org file and make sure it has the right filetags.
       (find-file (expand-file-name
 		  (concat label ".org")
