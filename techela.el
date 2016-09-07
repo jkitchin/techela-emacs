@@ -448,7 +448,7 @@ used."
 
     ;; make zip of directory
     (shell-command (format "zip -v -r %s .git *"
-			   zip-name))
+			   (concat zip-name ".zip")))
 
     ;; the .git folder is locally not in sync with the one turned in.
     (message-mail)
