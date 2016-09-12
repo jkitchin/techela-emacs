@@ -470,10 +470,11 @@ This does not pull the repos. See `tq-pull-repos'."
    (mygit "git push origin master"))
 
   ;; change state of assignment in syllabus
-  (set-buffer (find-file-noselect tq-course-syllabus))
+  (set-buffer (find-file-noselect tq-course-syllabus)) 
+  (toggle-read-only -1)
   (org-open-link-from-string (format "[[#%s]]" label))
   (org-todo "COLLECTED")
-  (save-buffer)
+  (save-buffer) 
 
   ;; push change
   (with-current-directory
