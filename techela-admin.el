@@ -389,6 +389,13 @@ section.
       (unless (and POINTS CATEGORY RUBRIC DUEDATE)
 	(error "You must define the points, category, duedate and rubric in the assignment file"))
 
+      ;; make sure everything is committed and pushed
+      (with-current-directory
+       (expand-file-name label tq-course-assignments-dir)
+       (mygit "git add *")
+       (mygit "git commit -m \"final commit before assignment.\"")
+       (mygit "git push origin master"))
+
       ;; Get syllabus
       (with-current-buffer (find-file-noselect
 			    (expand-file-name "syllabus.org"
