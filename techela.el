@@ -189,11 +189,48 @@ you will be prompted for setup information."
   (save-some-buffers t) ;;save all buffers
   (with-current-directory
    tq-course-directory
-   (mygit "git stash")
+   (mygit "git add *")
+   (mygit "git commit -m \"my changes\"")
    (mygit "git pull origin master")
-   (mygit "git submodule update")
-   (mygit "git stash pop")
+   (mygit "git submodule update") 
    (mygit "git commit -am \"accepting merge\"")))
+
+;; TODO - this needs better git logic, using functions from techela-git
+;; we need to check if the file is tracked, and whether it is dirty
+(defun tq-update ()
+  "Update current visited file from git.
+If local changes have been made, they are commited to the local
+repo so a merge can be done."
+  (interactive)
+  (tq-check-internet)
+  (if (not (string= "" (shell-command-to-string
+			(concat "git status --porcelain "
+				(file-name-nondirectory
+				 (buffer-file-name))))))
+      ;; the file is dirty. We will commit the results. so we can
+      ;; pull. This may result in a conflict later that we have to merge.
+      (progn
+	(message "It looks like you have made changes to this file. There may be conflicting changes when we merge the update with your changes. These will look like:
+<<<<<<<< HEAD
+Your changes
+========
+Changes on the server
+>>>>>>>> some-random-git hash characters
+These will be committed so that future merges are possible. You should probably keep the server version to avoid future conflicts.")
+
+	;; first, we commit our changes.
+	(save-some-buffers t)
+	(mygit "git add *")
+	(shell-command (concat "git commit -am \"my changes\""))
+
+	;; now get remotes
+	(mygit "git pull origin master")
+	;; and now we commit our changes. This may result in
+	;; conflicts. We will just accept them and move on.
+	(shell-command "git commit -a -m \"accepting merge\""))
+    ;; it looks like we were clean
+    (mygit "git pull origin master")
+    (revert-buffer t t)))
 
 ;; * Get assignment/turn it in
 (defun tq-get-assigned-assignments ()
