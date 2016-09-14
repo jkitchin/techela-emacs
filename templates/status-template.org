@@ -65,6 +65,10 @@ Reminder to self: need to decide what status means here.
 
 - [[elisp:tq-helm-gradebook][Gradebook]]
 
+- [[elisp:tq-clone-server-assignments][Pull all assignments from server]]
+- [[elisp:tq-clone-server-solutions][Pull all solutions from the server]]
+- [[elisp:tq-server-info][List server repos]]
+
 *** Individual Student Actions
 
 - [[elisp:tq-assign-to][Assign assignment to a student. give RW access]]
