@@ -1354,6 +1354,7 @@ Each element is (permission-string repo-name)."
   "Locally clone or update all the assignments from the server.
 This will get all assignments that are on the server, including
 ones not yet assigned."
+  (interactive)
   (let* ((all-repos (tq-server-repos))
 	 (assignment-repos (-filter (lambda (repo-cell)
 				      (string-match "assignments/[a-z].*" (nth 1 repo-cell)))
@@ -1371,8 +1372,9 @@ ones not yet assigned."
 						      tq-root-directory)
 				    (mygit "git pull origin master"))))))
 
-(defun tq-clone-server-solutions ()
+(defun tq-clone-server-solutions () 
   "Locally clone or update all the assignments from the server."
+  (interactive)
   (let* ((all-repos (tq-server-repos))
 	 (solution-repos (-filter (lambda (repo-cell)
 				    (string-match "solutions/[a-z].*" (nth 1 repo-cell)))
