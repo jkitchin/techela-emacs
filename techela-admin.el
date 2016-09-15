@@ -318,6 +318,9 @@ Interactively prompt for points, category, rubric and due date."
 	(gb-set-filetag "DUEDATE" (with-temp-buffer
 				    (org-time-stamp '())
 				    (buffer-string))))
+
+      (gb-set-filetag "STARTUP" "showeverything")
+      
       (goto-char (point-max))
       (insert "\n\n[[elisp:tq-turn-it-in][Turn it in]]\n"))))
 
