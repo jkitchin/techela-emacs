@@ -202,7 +202,7 @@ git status:
   :PROPERTIES:
   :VISIBILITY: children
   :END:\n"))
-  (dolist (assignment (tq-get-possible-assignments)) 
+  (dolist (assignment (tq-get-assigned-assignments)) 
     ;; check assignment status
     (let ((label assignment)
 	  (git-assignment-status)
