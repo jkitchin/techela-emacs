@@ -279,7 +279,8 @@ git status:
      (tq-status))
 ,#+END_SRC
   " label)))))
-	;; no solution found
+	;; no solution found locally
+	(setq body (concat body (format "[[solution:%s]]" label)))
 	(setq header (concat header " no solution"))
 	(setq body (concat
 		    body
