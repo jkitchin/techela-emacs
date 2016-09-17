@@ -843,13 +843,14 @@ org-file %s" label-dir repo repo-dir org-file)
   (org-ctrl-c-ctrl-c)
   (forward-line 3)
   (insert (format "
-#+BEGIN_SRC python :var data=summary-%s
+#+BEGIN_SRC python :var data=summary-%s :results org drawer
 import matplotlib.pyplot as plt
+import pycse.orgmode as org
+
 grades = [x[1] for x in data if x[1] is not 'nil']
 
 plt.hist(grades, 20)
-plt.savefig('%s-hist.png')
-# [[./%s-hist.png]]
+org.figure(plt.savefig('%s-hist.png'))
 
 import numpy as np
 print('Average grade = {}'.format(np.mean(grades)))
