@@ -278,13 +278,11 @@ a link in the heading."
 			   "git status --porcelain")))
 	 ;; There are some local changes. We commit them, pull,
 	 ;; and commit merges if there are any
-	 (progn
-	   (message "Local changes found. Please wait while I stash and reapply them.")
-	   (mygit "git stash")
+	 (progn 
+	   (mygit "git add *")
+	   (mygit "git commit -am \"my changes\"") 
 	   (mygit "git pull origin master")
-	   (mygit "git stash pop"))
-       ;; we were clean. Let's pull anyway to get remote changes.
-       (message "Checking for remote changes")
+	   (mygit "git commit -am \"commit post pull\""))
        (mygit "git pull origin master"))
 
      ;; now, open the file
