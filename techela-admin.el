@@ -1371,7 +1371,9 @@ ones not yet assigned."
 	  (if (not (file-directory-p repo-name))
 	      ;; get it
 	      (with-current-directory tq-course-assignments-dir
-				      (mygit (format "git clone %s" repo-name)))
+				      (mygit (format "git clone %s:%s"
+						     (techela-course-techela-server tq-current-course)
+						     repo-name)))
 	    (with-current-directory (expand-file-name repo-name
 						      tq-root-directory)
 				    (mygit "git pull origin master"))))))
@@ -1379,10 +1381,9 @@ ones not yet assigned."
 (defun tq-clone-server-solutions () 
   "Locally clone or update all the assignments from the server."
   (interactive)
-  (let* ((all-repos (tq-server-repos))
-	 (solution-repos (-filter (lambda (repo-cell)
+  (let* ((solution-repos (-filter (lambda (repo-cell)
 				    (string-match "solutions/[a-z].*" (nth 1 repo-cell)))
-				  all-repos))
+				  (tq-server-repos)))
 	 (default-directory tq-root-directory))
     ;; (permissions-string repo-name)
     ;; repo-names are assignments/label
@@ -1390,8 +1391,12 @@ ones not yet assigned."
 	  do
 	  (if (not (file-directory-p repo-name))
 	      ;; get it
-	      (with-current-directory tq-course-solutions-dir
-				      (mygit (format "git clone %s" repo-name)))
+	      (with-current-directory
+	       tq-course-solutions-dir
+	       (mygit (format "git clone %s:%s"
+			      (techela-course-techela-server tq-current-course)
+			      repo-name)))
+	    ;; update it
 	    (with-current-directory (expand-file-name repo-name
 						      tq-root-directory)
 				    (mygit "git pull origin master"))))))
