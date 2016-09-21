@@ -46,8 +46,6 @@
 - [[elisp:tq-grade][Grade an assignment for class]] (collect and pull repos. create grading list)
 - [[elisp:tq-return][Return an assignment to class]] (push local copies to server)
 
-- [[elisp:tq-show-assigned-assignments][Show list of assigned assignments]]
-
 - [[elisp:tq-helm-gradebook][Gradebook]]
 
 - [[elisp:tq-clone-server-assignments][Pull all assignments from server]]
