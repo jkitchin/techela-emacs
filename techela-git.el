@@ -24,7 +24,7 @@ Returns (list status output)."
 		       "techela_ssh"
 		       tq-root-directory))
 	 (cmd (mapconcat #'identity
-			 (list techela-ssh
+			 (list "bash" techela-ssh
 			       (techela-course-techela-server tq-current-course)
 			       command)
 			 " "))
