@@ -558,8 +558,8 @@ This means go into each repo, commit all changes, and push them."
 	(with-current-directory
 	 repo-dir
 	 ;; only push if changes detected
-	 (if (or (> (tq-git-n-untracked-files) 0) ; we have untracked files
-		 (> (tq-git-n-modified-files) 0)  ; we have modified files
+	 (if (or (> (tq-git-n-untracked-files) 0)  ; we have untracked files
+		 (> (tq-git-n-modified-files) 0)   ; we have modified files
 		 (> (nth 0 (tq-git-n-commits)) 0)) ; local is ahead of remote
 	     (progn
 	       (message "returning %s" userid)
@@ -573,6 +573,7 @@ This means go into each repo, commit all changes, and push them."
   ;; change state of assignment in syllabus
   (set-buffer (find-file-noselect
 	       tq-course-syllabus))
+  (read-only-mode -1)
   (org-open-link-from-string (format "[[#%s]]" label))
   (org-todo "GRADED")
   (save-buffer)
