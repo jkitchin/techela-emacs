@@ -1203,7 +1203,7 @@ a link in the heading."
 		  (expand-file-name
 		   "student-work"
 		   (expand-file-name
-		    tq-current-course
+		    (symbol-name (techela-course-label tq-current-course))
 		    (expand-file-name "~/techela-admin"))))))
 	   (result)
 	   (n-commits) (n-modified) (n-untracked)
