@@ -1371,7 +1371,7 @@ ones not yet assigned."
 	  (if (not (file-directory-p repo-name))
 	      ;; get it
 	      (with-current-directory tq-course-assignments-dir
-				      (mygit "git clone %s" repo-name))
+				      (mygit (format "git clone %s" repo-name)))
 	    (with-current-directory (expand-file-name repo-name
 						      tq-root-directory)
 				    (mygit "git pull origin master"))))))
@@ -1391,7 +1391,7 @@ ones not yet assigned."
 	  (if (not (file-directory-p repo-name))
 	      ;; get it
 	      (with-current-directory tq-course-solutions-dir
-				      (mygit "git clone %s" repo-name))
+				      (mygit (format "git clone %s" repo-name)))
 	    (with-current-directory (expand-file-name repo-name
 						      tq-root-directory)
 				    (mygit "git pull origin master"))))))
