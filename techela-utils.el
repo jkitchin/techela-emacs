@@ -202,8 +202,8 @@ Opens all course files, then does the search."
   (interactive)
   (hl-line-mode)
   (global-linum-mode)
-  (set-face-attribute 'default nil :height 150)
-  (plist-put org-format-latex-options :scale 1.5))
+  (set-face-attribute 'default nil :height 180)
+  (plist-put org-format-latex-options :scale 1.7))
 
 
 (global-set-key (kbd "C--") 'tq-decrease-text-size)
