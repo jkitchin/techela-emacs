@@ -623,13 +623,67 @@ This will be in student-work/label/userid-label/userid-label.org."
 
 ;; ** Solutions
 
+;; (defun tq-create-solution (label)
+;;   "Create or edit a solution LABEL.
+;; This creates the repo if needed, and copies the assignment to the
+;; solution directory. It does not give students access to the
+;; solution. It also does not commit or push your work for you. You
+;; need to run `tq-release-solution' to give students access to the
+;; solution."
+;;   (interactive (list
+;; 		(completing-read
+;; 		 "Label: "
+;; 		 (tq-get-possible-assignments) nil t)))
+
+;;   (let ((solution-dir (file-name-as-directory
+;; 		       (expand-file-name
+;; 			label
+;; 			tq-course-solutions-dir))))
+;;     (unless (file-exists-p solution-dir)
+;;       ;; no dir found. create the repo and directory. It is a wild
+;;       ;; repo on gitolite.
+;;       (with-current-directory
+;;        tq-course-solutions-dir
+;;        (mygit (format "git clone %s:solutions/%s"
+;; 		      (techela-course-techela-server tq-current-course)
+;; 		      label))
+
+;;        ;; now, copy assignment org in as basis for solution unless it now exists.
+;;        (let ((assign-org (expand-file-name
+;; 			  (concat label ".org")
+;; 			  (expand-file-name
+;; 			   label
+;; 			   tq-course-assignments-dir)))
+;; 	     (soln-org (expand-file-name
+;; 			(concat label ".org")
+;; 			solution-dir))) 
+;; 	 ;; If we don't have the solution org-file, we copy everything over from
+;; 	 ;; the assignment repo, except the .git repo.
+;; 	 (unless (file-exists-p soln-org) 
+;; 	   (with-current-directory
+;; 	    solution-dir
+;; 	    (loop for f in 
+;; 		  (f-entries
+;; 		   (expand-file-name
+;; 		    label
+;; 		    tq-course-assignments-dir)
+;; 		   (lambda (f) (not (s-ends-with-p ".git" f))))
+;; 		  do
+;; 		  (if (file-directory-p f)
+;; 		      (copy-directory f solution-dir nil t t)
+;; 		    (copy-file f solution-dir t))))))))
+
+;;     ;; open the file
+;;     (find-file (expand-file-name
+;; 		(concat label ".org")
+;; 		solution-dir))))
+
 (defun tq-create-solution (label)
   "Create or edit a solution LABEL.
-This creates the repo if needed, and copies the assignment to the
-solution directory. It does not give students access to the
-solution. It also does not commit or push your work for you. You
-need to run `tq-release-solution' to give students access to the
-solution."
+This clones the repo if needed, and changes the remote. It does
+not give students access to the solution. It also does not commit
+or push your work for you. You need to run `tq-release-solution'
+to give students access to the solution."
   (interactive (list
 		(completing-read
 		 "Label: "
@@ -643,40 +697,31 @@ solution."
       ;; no dir found. create the repo and directory. It is a wild
       ;; repo on gitolite.
       (with-current-directory
-       tq-course-solutions-dir
-       (mygit (format "git clone %s:solutions/%s"
+       tq-course-solutions-dir 
+       (mygit (format "git clone %s:assignments/%s"
 		      (techela-course-techela-server tq-current-course)
-		      label))
-
-       ;; now, copy assignment org in as basis for solution unless it now exists.
-       (let ((assign-org (expand-file-name
-			  (concat label ".org")
-			  (expand-file-name
-			   label
-			   tq-course-assignments-dir)))
-	     (soln-org (expand-file-name
-			(concat label ".org")
-			solution-dir))) 
-	 ;; If we don't have the solution org-file, we copy everything over from
-	 ;; the assignment repo, except the .git repo.
-	 (unless (file-exists-p soln-org) 
-	   (with-current-directory
-	    solution-dir
-	    (loop for f in 
-		  (f-entries
-		   (expand-file-name
-		    label
-		    tq-course-assignments-dir)
-		   (lambda (f) (not (s-ends-with-p ".git" f))))
-		  do
-		  (if (file-directory-p f)
-		      (copy-directory f solution-dir nil t t)
-		    (copy-file f solution-dir t))))))))
+		      label)))
+      (with-current-directory
+       solution-dir
+       (mygit "git remote rename origin src")
+       (mygit
+	(mustache-render
+	 "git remote add origin {{host}}:solutions/{{label}}"
+	 (ht ("host" (techela-course-techela-server tq-current-course))
+	     ("label" label))))))
     
-    ;; open the file
-    (find-file (expand-file-name
-		(concat label ".org")
-		solution-dir))))
+    ;; open the file, update from src and origin if needed.
+    (with-current-directory
+     solution-dir
+     (mygit "git add *")
+     (mygit "git commit -am \"pre-pull from src\"")
+     (mygit "git fetch src")
+     (mygit "git merge src/master")
+     (mygit "git commit -am \"post-pull from src\"")
+     (mygit "git pull origin master")
+     (find-file (expand-file-name
+		 (concat label ".org")
+		 solution-dir)))))
 
 
 (defun tq-release-solution (label)
