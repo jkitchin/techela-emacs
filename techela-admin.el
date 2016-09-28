@@ -590,11 +590,12 @@ This means go into each repo, commit all changes, and push them."
 This will be in student-work/label/userid-label/userid-label.org."
   (interactive (list (completing-read "Label: " (tq-get-assigned-assignments))
 		     (completing-read "Userid: " (tq-get-userids))))
+  (setq *tq-grade-window-configuration* (current-window-configuration))
   (let* ((repo (tq-get-repo-name label userid))
 	 (repo-dir (file-name-as-directory
 		    (expand-file-name
 		     repo
-		     tq-root-directory))))
+		     tq-root-directory)))) 
     (message "looking for %s %s"  repo repo-dir)
     (if (file-exists-p repo-dir)
 	(with-current-directory
@@ -619,6 +620,7 @@ This will be in student-work/label/userid-label/userid-label.org."
        repo-dir
        (find-file (concat label ".org"))
        (grade-mode)
+       (add-hook 'kill-buffer-hook (lambda () (set-window-configuration *tq-grade-window-configuration*)) nil t)
        (buffer-name)))))
 
 ;; ** Solutions
@@ -817,15 +819,9 @@ This is not fast since it pulls each repo."
 	       (student-org-file (expand-file-name
 				  (concat label ".org")
 				  repo-dir)))
-	  (if (file-exists-p student-org-file)
-	      (insert (format "** TODO [[%s][%s]]\n"
-			      (file-relative-name
-			       student-org-file
-			       (expand-file-name "gradebook"
-						 tq-gitolite-admin-dir))
-			      repo-name))
-	    ;; missing org file
-	    (insert (format "** TODO %s missing\n" repo-name)))))
+	  (insert (format "** [[elisp:(tq-open-assignment \"%s\" \"%s\")][%s]]%s\n"
+			  label userid repo-name
+			  (if (file-exists-p student-org-file) "" " missing")))))
 
       ;; loop is over. Put in last section
       (insert (format "
