@@ -765,6 +765,9 @@ See also `tq-close-solution'."
 
 
 ;; * Grading functions
+(defvar *tq-grade-window-configuration* nil
+  "Holds the gradebook window configuration.")
+
 (defun tq-grade (label)
   "Collect and pull repos for assignment LABEL. Open the grading org-file.
 This is not fast since it pulls each repo."
@@ -838,7 +841,8 @@ This is not fast since it pulls each repo."
 ")
 	      (format "
 4. [[elisp:tq-commit-gradesheet][Save and push this file]]" grading-file grading-file))))
-  (grade-mode))
+  (grade-mode)
+  (setq *tq-grade-window-configuration* (current-window-configuration)))
 
 
 (defun tq-commit-gradesheet ()

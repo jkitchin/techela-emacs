@@ -133,7 +133,8 @@ in."
       ;; (unless (gb-ontime-p)
       ;; 	(gb-set-filetag "LATE" "Your assignment was late. You may be subject to a 50% penalty in the future."))
       (save-buffer)
-      (kill-buffer))))
+      (kill-buffer)
+      (set-window-configuration *tq-grade-window-configuration*))))
 
 
 (defun gb-get-grade (fname)
