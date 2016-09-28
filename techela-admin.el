@@ -708,7 +708,8 @@ to give students access to the solution."
 	(mustache-render
 	 "git remote add origin {{host}}:solutions/{{label}}"
 	 (ht ("host" (techela-course-techela-server tq-current-course))
-	     ("label" label))))))
+	     ("label" label))))
+       (mygit "git branch --set-upstream-to=origin/master")))
     
     ;; open the file, update from src and origin if needed.
     (with-current-directory
