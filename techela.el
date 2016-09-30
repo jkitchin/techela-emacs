@@ -464,7 +464,7 @@ used."
 		     (buffer-file-name))))))
     ;; update system file
     (tq-insert-system-info)
-    (gb-set-filetag "TURNED-IN-BY-EMAIL:" (current-time-string))
+    (gb-set-filetag "TURNED-IN-BY-EMAIL" (current-time-string))
     (save-some-buffers t)
 
     ;; remove zip if it exists.
