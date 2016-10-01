@@ -322,6 +322,7 @@ Interactively prompt for points, category, rubric and due date."
       (gb-set-filetag "STARTUP" "showeverything")
       
       (goto-char (point-max))
+      (insert "\n#+AUTHOR: \n#+EMAIL: \n")
       (insert "\n\n[[elisp:tq-turn-it-in][Turn it in]]\n"))))
 
 
@@ -819,7 +820,7 @@ This is not fast since it pulls each repo."
 	       (student-org-file (expand-file-name
 				  (concat label ".org")
 				  repo-dir)))
-	  (insert (format "** [[elisp:(tq-open-assignment \"%s\" \"%s\")][%s]]%s\n"
+	  (insert (format "- [ ] [[elisp:(tq-open-assignment \"%s\" \"%s\")][%s]]%s\n"
 			  label userid repo-name
 			  (if (file-exists-p student-org-file) "" " missing")))))
 
@@ -1401,6 +1402,20 @@ Each element is (permission-string repo-name)."
   (insert (s-join "\n" (mapcar (lambda (s) (s-join " " s)) (tq-server-repos)))))
 
 
+(defun tq-get-server-assignments ()
+  "Return a list of assignment labels on the server."
+  (loop for (car repo) in (tq-server-repos)
+	if (string-match "assignments/\\([a-z].*\\)" repo)
+	collect (match-string 1 repo)))
+
+
+(defun tq-get-server-solutions ()
+  "Return a list of solution labels on the server."
+  (loop for (car repo) in (tq-server-repos)
+	if (string-match "solutions/\\([a-z].*\\)" repo)
+	collect (match-string 1 repo)))
+
+
 (defun tq-clone-server-assignments ()
   "Locally clone or update all the assignments from the server.
 This will get all assignments that are on the server, including
@@ -1421,6 +1436,7 @@ ones not yet assigned."
 				      (mygit (format "git clone %s:%s"
 						     (techela-course-techela-server tq-current-course)
 						     repo-name)))
+	    ;; make sure it is up to date
 	    (with-current-directory (expand-file-name repo-name
 						      tq-root-directory)
 				    (mygit "git pull origin master"))))))
@@ -1447,6 +1463,61 @@ ones not yet assigned."
 	    (with-current-directory (expand-file-name repo-name
 						      tq-root-directory)
 				    (mygit "git pull origin master"))))))
+
+
+(defvar *countdown-timer* nil
+  "Countdown timer")
+
+
+(defun tq-countdown (end-time assignments)
+  "Countdown to END-TIME then collect assignments.
+END-TIME is something like \"September 28 2016 19:45\""
+
+  ;; if we don't have a timer, start it
+  (unless *countdown-timer*
+    (setq *countdown-timer*
+	  (run-at-time nil 1 'tq-countdown end-time assignments))
+    (switch-to-buffer-other-window (get-buffer-create "*countdown*"))
+    (use-local-map (copy-keymap org-mode-map))
+    (local-set-key (kbd "q") (lambda ()
+			       (interactive) 
+			       (when *countdown-timer*
+				 (cancel-timer *countdown-timer*)
+				 (setq *countdown-timer* nil))
+			       (kill-buffer))))
+  
+  (let* ((N (round (time-to-seconds
+		    (time-subtract
+		     (date-to-time end-time)
+		     (current-time)))))
+	 (hours (floor (/ N 3600)))
+	 (minutes (floor (/ (- N (* hours 3600)) 60)))
+	 (seconds (- N (* hours 3600) (* minutes 60))))
+
+    (with-current-buffer (get-buffer-create "*countdown*")
+      (erase-buffer)
+      (insert (propertize
+	       (format "%s %s %s %s %s %s remaining"
+		       hours (if (= 1 hours) "hour" "hours")
+		       minutes (if (= 1 minutes) "minute" "minutes")
+		       seconds (if (= 1 seconds) "second" "seconds"))
+	       'face (list ':height 250
+			   :foreground (cond
+					((> 60 N)
+					 "red")
+					((> 120 N)
+					 "orange")
+					(t
+					 "DarkOliveGreen"))))))
+    
+    (when (>= 0 N) 
+      (cancel-timer *countdown-timer*)
+      (setq *countdown-timer* nil)
+      (with-current-buffer "*countdown*"
+	(loop for assignment in assignments
+	      do
+	      (insert (concat "\nCollecting " assignment "\n")))
+	(insert "\nFinished. Have a good day!")))))
 
 
 (provide 'techela-admin)
