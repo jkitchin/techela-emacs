@@ -1494,7 +1494,7 @@ END-TIME is something like \"19:45\" assuming it is today."
     (setq header-line-format "Press q to cancel.")
     
     (insert "Please wait, while I make the assignments available.")
-    ;; (mapc #'tq-assign-assignment assignments)
+    (mapc #'tq-assign-assignment assignments)
     (erase-buffer))
   
   (let* ((current-date (calendar-current-date))
