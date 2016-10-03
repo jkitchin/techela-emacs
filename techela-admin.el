@@ -1468,27 +1468,42 @@ ones not yet assigned."
 (defvar *countdown-timer* nil
   "Countdown timer")
 
+(defun tq-cancel-countdown ()
+  "Cancel a running countdown."
+  (interactive) 
+  (when *countdown-timer*
+    (cancel-timer *countdown-timer*)
+    (setq *countdown-timer* nil)
+    (kill-buffer "*countdown*")))
 
 (defun tq-countdown (end-time assignments)
-  "Countdown to END-TIME then collect assignments.
-END-TIME is something like \"September 28 2016 19:45\""
-
+  "Countdown to END-TIME then collect ASSIGNMENTS.
+END-TIME is something like \"19:45\" assuming it is today."
+  (interactive (list
+		(read-input "Stop time (24hr): ")
+		(split-string (read-input "Assignments (space separated): ") " ")))
+  
   ;; if we don't have a timer, start it
   (unless *countdown-timer*
     (setq *countdown-timer*
 	  (run-at-time nil 1 'tq-countdown end-time assignments))
-    (switch-to-buffer-other-window (get-buffer-create "*countdown*"))
-    (use-local-map (copy-keymap org-mode-map))
-    (local-set-key (kbd "q") (lambda ()
-			       (interactive) 
-			       (when *countdown-timer*
-				 (cancel-timer *countdown-timer*)
-				 (setq *countdown-timer* nil))
-			       (kill-buffer))))
+    (switch-to-buffer-other-window (get-buffer-create "*countdown*")) 
+    (let ((local-map (make-sparse-keymap)))
+      (define-key local-map (kbd "q") #'tq-cancel-countdown)
+      (use-local-map local-map)) 
+    (setq header-line-format "Press q to cancel.")
+    
+    (insert "Please wait, while I make the assignments available.")
+    ;; (mapc #'tq-assign-assignment assignments)
+    (erase-buffer))
   
-  (let* ((N (round (time-to-seconds
+  (let* ((current-date (calendar-current-date))
+	 (month (calendar-month-name (nth 0 current-date)))
+	 (day (nth 1 current-date))
+	 (year (nth 2 current-date))
+	 (N (round (time-to-seconds
 		    (time-subtract
-		     (date-to-time end-time)
+		     (date-to-time (format "%s %s %s %s" month day year end-time))
 		     (current-time)))))
 	 (hours (floor (/ N 3600)))
 	 (minutes (floor (/ (- N (* hours 3600)) 60)))
@@ -1496,19 +1511,29 @@ END-TIME is something like \"September 28 2016 19:45\""
 
     (with-current-buffer (get-buffer-create "*countdown*")
       (erase-buffer)
-      (insert (propertize
-	       (format "%s %s %s %s %s %s remaining"
-		       hours (if (= 1 hours) "hour" "hours")
-		       minutes (if (= 1 minutes) "minute" "minutes")
-		       seconds (if (= 1 seconds) "second" "seconds"))
-	       'face (list ':height 250
-			   :foreground (cond
-					((> 60 N)
-					 "red")
-					((> 120 N)
-					 "orange")
-					(t
-					 "DarkOliveGreen"))))))
+      (insert
+       (concat
+	(propertize
+	 (format "%s %s %s %s %s %s remaining\n\n"
+		 hours (if (= 1 hours) "hour" "hours")
+		 minutes (if (= 1 minutes) "minute" "minutes")
+		 seconds (if (= 1 seconds) "second" "seconds"))
+	 'face (list :height 250
+		     :foreground (cond
+				  ((> 60 N)
+				   "red")
+				  ((> 120 N)
+				   "orange")
+				  (t
+				   "Green3"))))
+	(format "There are %s assignments:\n\n" (length assignments))
+	(loop for i from 1 to (+ 1 (length assignments)) for label in assignments
+	      concat
+	      (concat
+	       (format "%s. " i)
+	       (propertize (format "assignment:%s" label) 'face 'org-link)
+	       "\n\n"))
+	"Make sure you turn each one in!")))
     
     (when (>= 0 N) 
       (cancel-timer *countdown-timer*)
@@ -1516,7 +1541,9 @@ END-TIME is something like \"September 28 2016 19:45\""
       (with-current-buffer "*countdown*"
 	(loop for assignment in assignments
 	      do
-	      (insert (concat "\nCollecting " assignment "\n")))
+	      (insert (concat "\nCollecting ." assignment))
+	      (tq-collect assignment)
+	      (insert " Done.\n"))
 	(insert "\nFinished. Have a good day!")))))
 
 
