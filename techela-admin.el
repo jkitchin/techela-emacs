@@ -740,19 +740,40 @@ See also `tq-close-solution'."
 			     label
 			     tq-course-solutions-dir))))
     (if (file-exists-p solution-repo-dir)
-	(with-current-directory
-	 solution-repo-dir
-	 ;; make sure we push the most recent work
-	 (progn
-	   (unless (string= "" (shell-command-to-string "git status --porcelain"))
-	     (mygit "git add *")
-	     (mygit (format "git commit -am \"committing solution to %s.\"" label))
-	     (mygit "git push"))
+	(progn
+	  (with-current-directory
+	   solution-repo-dir
+	   ;; make sure we push the most recent work
+	   (progn
+	     (unless (string= "" (shell-command-to-string "git status --porcelain"))
+	       (mygit "git add *")
+	       (mygit (format "git commit -am \"committing solution to %s.\"" label))
+	       (mygit "git push"))
 
-	   (shell-command
-	    (format "ssh %s perms solutions/%s + READERS @students"
-		    (techela-course-techela-server tq-current-course)
-		    label))))
+	     (shell-command
+	      (format "ssh %s perms solutions/%s + READERS @students"
+		      (techela-course-techela-server tq-current-course)
+		      label))))
+	  ;; Now add solution link in syllabus
+
+	  (with-current-buffer (find-file-noselect
+				(expand-file-name "syllabus.org"
+						  tq-course-directory))
+	    (save-restriction
+	      (widen)
+	      (beginning-of-buffer)
+	      ;; This link relies on a CUSTOM_ID
+	      (org-open-link-from-string "[[#assignments]]")
+	      (unless (-contains? '("COLLECTED" "GRADED") (org-entry-get (point) "TODO")))
+	      (org-narrow-to-subtree)
+	      (goto-char (point-max))
+	      (toggle-read-only -1)
+	      (insert (format "\nsolution:%s" label))
+	      (save-buffer)
+	      (with-current-directory
+	       tq-course-directory
+	       (mygit (format  "git commit syllabus.org -m \"Added solution to %s\"" label))
+	       (mygit "git push origin master")))))
       (error "%s not found" solution-repo-dir))))
 
 
@@ -1518,14 +1539,14 @@ END-TIME is something like \"19:45\" assuming it is today."
 		 hours (if (= 1 hours) "hour" "hours")
 		 minutes (if (= 1 minutes) "minute" "minutes")
 		 seconds (if (= 1 seconds) "second" "seconds"))
-	 'face (list :height 250
+	 'face (list :height 350
 		     :foreground (cond
-				  ((> 60 N)
+				  ((> (* 2 60) N)
 				   "red")
-				  ((> 120 N)
-				   "orange")
+				  ((> (* 10 60) N)
+				   "DarkOrange2")
 				  (t
-				   "Green3"))))
+				   "Green4"))))
 	(format "There are %s assignments:\n\n" (length assignments))
 	(loop for i from 1 to (+ 1 (length assignments)) for label in assignments
 	      concat
@@ -1543,6 +1564,7 @@ END-TIME is something like \"19:45\" assuming it is today."
 	      do
 	      (insert (concat "\nCollecting ." assignment))
 	      (tq-collect assignment)
+	      (set-buffer "*countdown*")
 	      (insert " Done.\n"))
 	(insert "\nFinished. Have a good day!")))))
 
