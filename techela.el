@@ -486,18 +486,19 @@ used."
     (shell-command (format "zip -v -r %s .git *"
 			   (concat zip-name ".zip")))
 
-    ;; TODO: still cmu specific
-    (setq send-mail-function 'smtpmail-send-it
-	  user-mail-address (gethash "user-mail-address" (tq-read-user-data))
-	  smtpmail-smtp-server "smtp.andrew.cmu.edu"
-	  smtpmail-smtp-service 587
-	  smtpmail-stream-type nil
-	  smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil))
-	  starttls-use-gnutls t
-	  starttls-gnutls-program "gnutls-cli"
-	  mail-host-address "andrew.cmu.edu")
-    ;; the .git folder is locally not in sync with the one turned in.
     (message-mail)
+    
+    ;; TODO: still cmu specific
+    (setq-local send-mail-function 'smtpmail-send-it)
+    (setq-local user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
+    (setq-local smtpmail-smtp-server "smtp.andrew.cmu.edu")
+    (setq-local smtpmail-smtp-service 587)
+    (setq-local smtpmail-stream-type nil)
+    (setq-local smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil)))
+    (setq-local starttls-use-gnutls t)
+    (setq-local starttls-gnutls-program "gnutls-cli")
+    (setq-local mail-host-address "andrew.cmu.edu")
+
     (mml-attach-file (concat zip-name ".zip"))
     (message-goto-to)
     (insert "jkitchin@andrew.cmu.edu")
@@ -523,25 +524,24 @@ repo remote origin: %s
 		 (what-line)
 		 (thing-at-point 'line)
 		 (nth 1 (mygit "git config --get remote.origin.url")))))
-
-    (setq send-mail-function 'smtpmail-send-it
-	  user-mail-address (gethash "user-mail-address" (tq-read-user-data))
-	  smtpmail-smtp-server "smtp.andrew.cmu.edu"
-	  smtpmail-smtp-service 587
-	  smtpmail-stream-type nil
-	  smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil))
-	  starttls-use-gnutls t
-	  starttls-gnutls-program "gnutls-cli"
-	  mail-host-address "andrew.cmu.edu")
     
     (compose-mail-other-frame)
+    (setq-local send-mail-function 'smtpmail-send-it)
+    (setq-local user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
+    (setq-local smtpmail-smtp-server "smtp.andrew.cmu.edu")
+    (setq-local smtpmail-smtp-service 587)
+    (setq-local smtpmail-stream-type nil)
+    (setq-local smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil)))
+    (setq-local starttls-use-gnutls t)
+    (setq-local starttls-gnutls-program "gnutls-cli")
+    (setq-local mail-host-address "andrew.cmu.edu")
     (message-goto-to)
     (insert (techela-course-instructor-email tq-current-course))
     (message-goto-subject)
     (insert (format "[%s] email" (symbol-name (techela-course-label tq-current-course))))
     (message-goto-body)
     (insert email-body)
-    (message-goto-body)		; go back to beginning of email body
+    (message-goto-body)			; go back to beginning of email body
     (next-line 2)			; and down two lines
     (message "Type C-c C-c to send message")))
 
@@ -549,16 +549,17 @@ repo remote origin: %s
 (defun tq-send-error-report ()
   "Send an error report to the instructor."
   (interactive)
-  (setq send-mail-function 'smtpmail-send-it
-	user-mail-address (gethash "user-mail-address" (tq-read-user-data))
-	smtpmail-smtp-server "smtp.andrew.cmu.edu"
-	smtpmail-smtp-service 587
-	smtpmail-stream-type nil
-	smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil))
-	starttls-use-gnutls t
-	starttls-gnutls-program "gnutls-cli"
-	mail-host-address "andrew.cmu.edu")
   (compose-mail-other-frame)
+  (setq-local send-mail-function 'smtpmail-send-it)
+  (setq-local user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
+  (setq-local smtpmail-smtp-server "smtp.andrew.cmu.edu")
+  (setq-local smtpmail-smtp-service 587)
+  (setq-local smtpmail-stream-type nil)
+  (setq-local smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil)))
+  (setq-local starttls-use-gnutls t)
+  (setq-local starttls-gnutls-program "gnutls-cli")
+  (setq-local mail-host-address "andrew.cmu.edu")
+
   (message-goto-to)
   (insert (techela-course-instructor-email tq-current-course))
   (message-goto-subject)
@@ -576,7 +577,7 @@ Messages\n==========\n")
     (insert "\n"))
   (message-goto-body)			; go back to beginning of email body
 
-  (next-line 2)			; and down two lines
+  (next-line 2)				; and down two lines
 
   (message "Type C-c C-c to send message"))
 
@@ -622,8 +623,7 @@ Messages\n==========\n")
 	       ;; then pull
 	       (mygit "git pull origin master")
 	       ;; accept conflicts if there are any
-	       (mygit "git commit -am \"accepting merge\""))
-	     )
+	       (mygit "git commit -am \"accepting merge\"")))
 
 	    ;; The student assignment will be in root/label/label.org
 	    (setq fname (expand-file-name (concat label "/" label ".org") tq-root-directory))
