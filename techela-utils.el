@@ -256,8 +256,9 @@ Shuffling is done in place."
   "Open a buffer with information about the setup for techela."
   (interactive)
   (switch-to-buffer (get-buffer-create "*techela describe*"))
-  (mustache-render
-   "Name: {{name}}
+  (insert
+   (mustache-render
+    "Name: {{name}}
 Userid: {{userid}}
 Email: {{email}}
 System: {{system-type}}
@@ -275,26 +276,30 @@ python located at: {{python}}
 * ssh pub key
 {{ssh-pub}}
 "
-   (ht ("name" user-full-name)
-       ("userid" (gethash "user-mail-address" (tq-read-user-data)))
-       ("email" user-mail-address)
-       ("window-system" window-system)
-       ("tempdir" temporary-file-directory)
-       ("home" (expand-file-name "~/"))
-       ("git" (executable-find "git"))
-       ("ssh" (executable-find "ssh"))
-       ("python" (executable-find "python"))
-       ("tq-ssh-config" (with-temp-buffer
-			  (insert-file-contents (expand-file-name
-						 (format "~/techela/%s/techela-ssh-config"
-							 (techela-course-label tq-current-course))))))
-       ("ssh-pub" (with-temp-buffer
-		    (insert-file-contents
-		     (expand-file-name
-		      (format "~/techela/%s/%s.pub"
-			      (techela-course-label tq-current-course)
-			      (gethash "user-mail-address" (tq-read-user-data)))))
-		    (buffer-string))))))
+    (ht ("name" user-full-name)
+	("userid" (gethash "user-mail-address" (tq-read-user-data)))
+	("email" user-mail-address)
+	("system-type" (format "%s" system-type))
+	("window-system" (format "%s" window-system))
+	("tempdir" temporary-file-directory)
+	("home" (expand-file-name "~/"))
+	("git" (executable-find "git"))
+	("ssh" (executable-find "ssh"))
+	("python" (executable-find "python"))
+	("tq-ssh-config" (with-temp-buffer
+			   (insert-file-contents
+			    (expand-file-name
+			     (format "~/techela/%s/techela-ssh-config"
+				     (techela-course-label tq-current-course))))
+			   (buffer-string)))
+	("ssh-pub" (with-temp-buffer
+		     (insert-file-contents
+		      (expand-file-name
+		       (format "~/techela/%s/%s.pub"
+			       (techela-course-label tq-current-course)
+			       (gethash "user-mail-address" (tq-read-user-data)))))
+		     (buffer-string))))))
+  (org-mode))
 
 (provide 'techela-utils)
 
