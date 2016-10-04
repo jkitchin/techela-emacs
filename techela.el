@@ -486,13 +486,6 @@ used."
     (shell-command (format "zip -v -r %s .git *"
 			   (concat zip-name ".zip")))
 
-    ;; the .git folder is locally not in sync with the one turned in.
-    (message-mail)
-    (mml-attach-file (concat zip-name ".zip"))
-    (message-goto-to)
-    (insert "jkitchin@andrew.cmu.edu")
-    (message-goto-subject)
-    (insert (format "[%s email turnin]" (techela-course-label tq-current-course)))
     ;; TODO: still cmu specific
     (let ((send-mail-function 'smtpmail-send-it)
 	  (user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
@@ -503,6 +496,13 @@ used."
 	  (starttls-use-gnutls t)
 	  (starttls-gnutls-program "gnutls-cli")
 	  (mail-host-address "andrew.cmu.edu"))
+      ;; the .git folder is locally not in sync with the one turned in.
+      (message-mail)
+      (mml-attach-file (concat zip-name ".zip"))
+      (message-goto-to)
+      (insert "jkitchin@andrew.cmu.edu")
+      (message-goto-subject)
+      (insert (format "[%s email turnin]" (techela-course-label tq-current-course)))
       (message-send-and-exit))))
 
 
@@ -524,42 +524,62 @@ repo remote origin: %s
 		 (thing-at-point 'line)
 		 (nth 1 (mygit "git config --get remote.origin.url")))))
 
-    (compose-mail-other-frame)
-    (message-goto-to)
-    (insert (techela-course-instructor-email tq-current-course))
-    (message-goto-subject)
-    (insert (format "[%s] email" (symbol-name (techela-course-label tq-current-course))))
-    (message-goto-body)
-    (insert email-body)
-    (message-goto-body) ; go back to beginning of email body
-    (next-line 2)         ; and down two lines
-    (message "Type C-c C-c to send message")))
+    (let ((send-mail-function 'smtpmail-send-it)
+	  (user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
+	  (smtpmail-smtp-server "smtp.andrew.cmu.edu")
+	  (smtpmail-smtp-service 587)
+	  (smtpmail-stream-type nil)
+	  (smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil)))
+	  (starttls-use-gnutls t)
+	  (starttls-gnutls-program "gnutls-cli")
+	  (mail-host-address "andrew.cmu.edu"))
+      
+      (compose-mail-other-frame)
+      (message-goto-to)
+      (insert (techela-course-instructor-email tq-current-course))
+      (message-goto-subject)
+      (insert (format "[%s] email" (symbol-name (techela-course-label tq-current-course))))
+      (message-goto-body)
+      (insert email-body)
+      (message-goto-body)		; go back to beginning of email body
+      (next-line 2)			; and down two lines
+      (message "Type C-c C-c to send message"))))
 
 ;;;###autoload
 (defun tq-send-error-report ()
   "Send an error report to the instructor."
   (interactive)
-  (compose-mail-other-frame)
-  (message-goto-to)
-  (insert (techela-course-instructor-email tq-current-course))
-  (message-goto-subject)
-  (insert (format "[%s] debug report" (symbol-name (techela-course-label tq-current-course))))
-  (message-goto-body)
-  (insert "Tell me what you were doing. Then press C-c C-c to send the message.
+  (let ((send-mail-function 'smtpmail-send-it)
+	(user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
+	(smtpmail-smtp-server "smtp.andrew.cmu.edu")
+	(smtpmail-smtp-service 587)
+	(smtpmail-stream-type nil)
+	(smtpmail-starttls-credentials '(("smtp.andrew.cmu.edu" 587 nil nil)))
+	(starttls-use-gnutls t)
+	(starttls-gnutls-program "gnutls-cli")
+	(mail-host-address "andrew.cmu.edu"))
+    
+    (compose-mail-other-frame)
+    (message-goto-to)
+    (insert (techela-course-instructor-email tq-current-course))
+    (message-goto-subject)
+    (insert (format "[%s] debug report" (symbol-name (techela-course-label tq-current-course))))
+    (message-goto-body)
+    (insert "Tell me what you were doing. Then press C-c C-c to send the message.
 
 
 Messages\n==========\n")
-  (when (get-buffer "*mygit-process*")
-    (insert (with-current-buffer "*mygit-process*" (buffer-string)))
-    (insert "\n"))
-  (when (get-buffer "*techela log*")
-    (insert (with-current-buffer "*techela log*" (buffer-string)))
-    (insert "\n"))
-  (message-goto-body) ; go back to beginning of email body
+    (when (get-buffer "*mygit-process*")
+      (insert (with-current-buffer "*mygit-process*" (buffer-string)))
+      (insert "\n"))
+    (when (get-buffer "*techela log*")
+      (insert (with-current-buffer "*techela log*" (buffer-string)))
+      (insert "\n"))
+    (message-goto-body)			; go back to beginning of email body
 
-  (next-line 2)         ; and down two lines
+    (next-line 2)			; and down two lines
 
-  (message "Type C-c C-c to send message"))
+    (message "Type C-c C-c to send message")))
 
 ;; * Grade report
 
