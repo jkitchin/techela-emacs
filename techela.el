@@ -667,6 +667,7 @@ Messages\n==========\n")
     ["Email instructor" tq-email t]
     ["Update current file" tq-update t]
     ["Send error report" tq-send-error-report t]
+    ["Submit assignment late by email" tq-submit-by-email t]
     ["Quit techela" tq-quit t]))
 
 
