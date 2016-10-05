@@ -486,8 +486,6 @@ used."
     (shell-command (format "zip -v -r %s .git *"
 			   (concat zip-name ".zip")))
 
-    (message-mail)
-    
     ;; TODO: still cmu specific
     (setq send-mail-function 'smtpmail-send-it)
     (setq user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
@@ -499,6 +497,7 @@ used."
     (setq starttls-gnutls-program "gnutls-cli")
     (setq mail-host-address "andrew.cmu.edu")
 
+    (message-mail)
     (mml-attach-file (concat zip-name ".zip"))
     (message-goto-to)
     (insert "jkitchin@andrew.cmu.edu")
@@ -525,7 +524,6 @@ repo remote origin: %s
 		 (thing-at-point 'line)
 		 (nth 1 (mygit "git config --get remote.origin.url")))))
     
-    (compose-mail-other-frame)
     (setq send-mail-function 'smtpmail-send-it)
     (setq user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
     (setq smtpmail-smtp-server "smtp.andrew.cmu.edu")
@@ -535,6 +533,7 @@ repo remote origin: %s
     (setq starttls-use-gnutls t)
     (setq starttls-gnutls-program "gnutls-cli")
     (setq mail-host-address "andrew.cmu.edu")
+    (compose-mail-other-frame)
     (message-goto-to)
     (insert (techela-course-instructor-email tq-current-course))
     (message-goto-subject)
@@ -549,7 +548,6 @@ repo remote origin: %s
 (defun tq-send-error-report ()
   "Send an error report to the instructor."
   (interactive)
-  (compose-mail-other-frame)
   (setq send-mail-function 'smtpmail-send-it)
   (setq user-mail-address (gethash "user-mail-address" (tq-read-user-data)))
   (setq smtpmail-smtp-server "smtp.andrew.cmu.edu")
@@ -559,7 +557,7 @@ repo remote origin: %s
   (setq starttls-use-gnutls t)
   (setq starttls-gnutls-program "gnutls-cli")
   (setq mail-host-address "andrew.cmu.edu")
-
+  (compose-mail-other-frame)
   (message-goto-to)
   (insert (techela-course-instructor-email tq-current-course))
   (message-goto-subject)
