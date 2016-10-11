@@ -763,7 +763,7 @@ See also `tq-close-solution'."
 	      (widen)
 	      (beginning-of-buffer)
 	      ;; This link relies on a CUSTOM_ID
-	      (org-open-link-from-string "[[#assignments]]")
+	      (org-open-link-from-string (format "[[#%s]]" label))
 	      (unless (-contains? '("COLLECTED" "GRADED") (org-entry-get (point) "TODO")))
 	      (org-narrow-to-subtree)
 	      (goto-char (point-max))
