@@ -624,7 +624,10 @@ Messages\n==========\n")
 	       (mygit "git commit -am \"accepting merge\"")))
 
 	    ;; The student assignment will be in root/label/label.org
-	    (setq fname (expand-file-name (concat label "/" label ".org") tq-root-directory))
+	    (setq fname (expand-file-name (concat
+					   label "assignments/"
+					   label ".org")
+					  tq-root-directory))
 
 	    (when (file-exists-p fname)
 	      (setq grade (gb-get-grade fname)))
