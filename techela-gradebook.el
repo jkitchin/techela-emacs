@@ -112,11 +112,25 @@ category)"
     (completing-read "Userid: " (tq-get-userids))))
   
   (let* ((grades (tq-get-user-grades userid))
-	 (earned (mapcar (lambda (x) (nth 5 x)) grades))
-	 (possible (mapcar (lambda (x) (nth 6 x)) grades))
+	 ;; (earned (mapcar (lambda (x)
+	 ;; 		   (* (plist-get x :fractional-grade)
+	 ;; 		      (plist-get x :possible-points)))
+	 ;; 		 grades))
+	 ;; (possible (mapcar (lambda (x)
+	 ;; 		     (plist-get x :possible-points))
+	 ;; 		   grades))
+	 
+	 (earned (mapcar (lambda (x)
+			   (plist-get x :category-weighted-points))
+			 grades))
+	 (possible (mapcar (lambda (x)
+			     (* (plist-get x :category-weight)
+				(plist-get x :possible-points)))
+			   grades))
 	 (fgrade (/ (apply '+ earned) (apply '+ possible)))
 	 (lg (gb-fraction-to-lettergrade fgrade))
-	 (name (plist-get (cdr (assoc userid (tq-roster-data))) :name)))
+	 (name (plist-get
+		(cdr (assoc userid (tq-roster-data))) :name)))
     (list
      name
      userid
@@ -212,11 +226,11 @@ category)"
   (switch-to-buffer (get-buffer-create "*gradebook*"))
   (erase-buffer)
   (insert (format "#+TITLE: Grade report for %s\n"
-		  (destructuring-bind (lname fname id fgrade lgrade)
+		  (destructuring-bind (name id fgrade lgrade)
 		      (tq-get-user-overall-grade userid)
-		    (format "%s %s (%s)
-Final grade: %1.3f %s\n"
-			    fname lname id fgrade lgrade))))
+		    (format "%s (%s)
+Overall grade: %1.3f %s\n"
+			    name id fgrade lgrade))))
   (insert "#+tblname: grades\n")
   (insert
    (mapconcat 'identity
