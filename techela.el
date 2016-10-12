@@ -609,10 +609,10 @@ Messages\n==========\n")
 	  (setq category (org-entry-get (point) "CATEGORY"))))
 
       ;; check if we need to update
-      (if (file-exists-p (expand-file-name label tq-root-directory))
+      (if (file-exists-p (expand-file-name label tq-assignment-directory))
 	  (progn
 	    (with-current-directory
-	     (expand-file-name label tq-root-directory)
+	     (expand-file-name label tq-assignment-directory)
 	     (when (> (tq-get-num-incoming-changes) 0)
 	       ;; make us clean first
 	       (save-some-buffers t) ; save everything
@@ -622,12 +622,11 @@ Messages\n==========\n")
 	       (mygit "git pull origin master")
 	       ;; accept conflicts if there are any
 	       (mygit "git commit -am \"accepting merge\"")))
-
-	    ;; The student assignment will be in root/label/label.org
+	    
 	    (setq fname (expand-file-name (concat
-					   label "assignments/"
+					   label "/"
 					   label ".org")
-					  tq-root-directory))
+					  tq-assignment-directory))
 
 	    (when (file-exists-p fname)
 	      (setq grade (gb-get-grade fname)))
