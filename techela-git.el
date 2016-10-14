@@ -298,6 +298,33 @@ The strategy is to check git status --porcelain first, and get the repo into a c
    ;; update this buffer
    (revert-buffer t t)))
 
+
+(defun tq-remotes ()
+  "Return a list of remotes for the repo the current buffer is in.
+Does not include the line showing what HEAD is tracking."
+  (mapcar 's-trim
+	  (-filter (lambda (s) (not (string-match " -> " s)))
+		   (s-split "\n"
+			    (s-trim 
+			     (shell-command-to-string "git branch -r"))))))
+
+
+(defun tq-show-remote (remote)
+  "Show the remote version of the open file in a new buffer.
+Note that this only shows the current file. If there are images
+in the file, they will reflect the local version, not the remote
+version.
+"
+  (interactive (list (completing-read "Remote: " (tq-remotes))))
+  (mygit "git fetch")
+  (let ((mm major-mode)
+	(f (s-trim (shell-command-to-string
+		    (format "git ls-tree --name-only HEAD %s" (buffer-name)))))) 
+    (pop-to-buffer (format "*%s:%s*" remote f))
+    (insert (shell-command-to-string (format  "git show %s:%s" remote f)))
+    (funcall mm)
+    (goto-char (point-min))))
+
 (provide 'techela-git)
 
 ;;; techela-git.el ends here
