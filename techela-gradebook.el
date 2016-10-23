@@ -212,11 +212,11 @@ category)"
   (switch-to-buffer (get-buffer-create "*gradebook*"))
   (erase-buffer)
   (insert
-   (destructuring-bind (lname fname id fgrade lgrade)
+   (destructuring-bind (name id fgrade lgrade)
        (tq-get-user-overall-grade userid)
 
-     (format "%s %s (%s) %1.3f %s"
-	     fname lname id fgrade lgrade))))
+     (format "%s (%s) %1.3f %s"
+	     name id fgrade lgrade))))
 
 
 (defun tq-student-grades (userid)
