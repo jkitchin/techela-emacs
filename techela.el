@@ -615,8 +615,8 @@ Messages\n==========\n")
 	     (expand-file-name label tq-assignment-directory)
 	     (when (> (tq-get-num-incoming-changes) 0)
 	       ;; make us clean first
-	       (save-some-buffers t) ; save everything
-	       (mygit "git add *") ; add anything new
+	       (save-some-buffers t)	; save everything
+	       (mygit "git add *")	; add anything new
 	       (mygit "git commit -am \"my changes\"")
 	       ;; then pull
 	       (mygit "git pull origin master")
@@ -631,11 +631,19 @@ Messages\n==========\n")
 	    (when (file-exists-p fname)
 	      (setq grade (gb-get-grade fname)))
 
-	    (insert (format "|[[%s][%s]]|  %10s|%20s|%20s|\n" fname label grade points category)))
+	    (insert (format "|[[%s][%s]]|  %10s|%20s|%20s|\n"
+			    fname label grade points category)))
 	;; no dir found
 	(insert (format "|%s|not found|%20s|%20s|\n" label points category)))))
   (previous-line)
   (org-ctrl-c-ctrl-c)
+  (goto-char (point-max))
+  (insert
+   (destructuring-bind (name id fgrade lgrade)
+       (tq-get-user-overall-grade userid)
+
+     (format "%s (%s) %1.3f %s"
+	     name id fgrade lgrade)))
   (goto-char (point-min))
   (switch-to-buffer "*grade report*"))
 
