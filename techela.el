@@ -640,7 +640,8 @@ Messages\n==========\n")
   (goto-char (point-max))
   (insert
    (destructuring-bind (name id fgrade lgrade)
-       (tq-get-user-overall-grade userid)
+       (tq-get-user-overall-grade
+	(gethash "user-mail-address" (tq-read-user-data)))
 
      (format "%s (%s) %1.3f %s"
 	     name id fgrade lgrade)))
